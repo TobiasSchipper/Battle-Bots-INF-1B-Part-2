@@ -107,34 +107,15 @@ void loop() {
     ifrInformation();
     if(_DISTANCE < 15)
     {
-        right45();
-        
         stopMotorControl();
-        
-        forward();
-        
-        left45();
-        
-        stopMotorControl();
-        
-        forward();
-        
-        left45();
-        
-        stopMotorControl();
-        
-        forward();
-        
-        right45();
-        
-        stopMotorControl();
-        
     }
     else
     {
         forward();
     }
 }
+
+
 
 //--------------------BEWEGINGSFUNCTIES
 //-------------DEFAULT FUNCTION
@@ -147,7 +128,11 @@ void motorControl(int motorA1, int motorA2, int motorB1, int motorB2) {
 
 //-------------FORWARD
 void forward() {
-    motorControl(0, 255, 0, 210);
+    unsigned long startTime = millis();
+    motorControl(0, 1, 0, 250);
+    while (millis() - startTime < 1000) { // Adjust the duration as needed
+        // Wait for the desired duration in milliseconds
+    }
 }
 
 //-------------BACKWARD
@@ -159,40 +144,36 @@ void backward() {
 void right45() {
     unsigned long startTime = millis();
     motorControl(0, 85, 50, 0);
-    while (millis() - startTime < 500) { // Adjust the duration as needed
+    while (millis() - startTime < 250) { // Adjust the duration as needed
         // Wait for the desired duration in milliseconds
     }
-    stopMotorControl();
 }
 
 //-------------RIGHT 90 DEGREE
 void right90() {
     unsigned long startTime = millis();
     motorControl(0, 255, 255, 0);
-    while (millis() - startTime < 1000) { // Adjust the duration as needed
+    while (millis() - startTime < 150) { // Adjust the duration as needed
         // Wait for the desired duration in milliseconds
     }
-    stopMotorControl();
 }
 
 //-------------LEFT 45 DEGREE
 void left45() {
     unsigned long startTime = millis();
     motorControl(25, 0, 0, 100);
-    while (millis() - startTime < 500) { // Adjust the duration as needed
+    while (millis() - startTime < 250) { // Adjust the duration as needed
         // Wait for the desired duration in milliseconds
     }
-    stopMotorControl();
 }
 
 //-------------LEFT 90 DEGREE
 void left90() {
     unsigned long startTime = millis();
     motorControl(255, 0, 0, 255);
-    while (millis() - startTime < 1000) { // Adjust the duration as needed
+    while (millis() - startTime < 150) { // Adjust the duration as needed
         // Wait for the desired duration in milliseconds
     }
-    stopMotorControl();
 }
 
 //-------------STOP MOTOR CONTROL
