@@ -41,8 +41,7 @@
 
 //-------------NEO PIXEL SETUP-----------------------------------
 #define PIN 2       // Data pin connected to DIN
-#define NUMPIXELS 4  // Change to match your LED count
-#define INTERVAL 125  // Speed of the rainbow effect
+#define NUMPIXELS 4  // neopixel led count
 Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
 //-------------PIN SETUP------------------------------------------
@@ -105,14 +104,6 @@ void setup() {
 void loop() {
     ifrSensor();
     ifrInformation();
-    if(_DISTANCE < 15)
-    {
-        stopMotorControl();
-    }
-    else
-    {
-        forward();
-    }
 }
 
 
@@ -128,6 +119,7 @@ void motorControl(int motorA1, int motorA2, int motorB1, int motorB2) {
 
 //-------------FORWARD
 void forward() {
+    regularLight();
     unsigned long startTime = millis();
     motorControl(0, 1, 0, 250);
     while (millis() - startTime < 1000) { // Adjust the duration as needed
@@ -137,11 +129,13 @@ void forward() {
 
 //-------------BACKWARD
 void backward() {
+    brakeLight();
     motorControl(255, 0, 210, 0);
 }
 
 //-------------RIGHT 45 DEGREE
 void right45() {
+    blinkerRight();
     unsigned long startTime = millis();
     motorControl(0, 85, 50, 0);
     while (millis() - startTime < 250) { // Adjust the duration as needed
@@ -151,6 +145,7 @@ void right45() {
 
 //-------------RIGHT 90 DEGREE
 void right90() {
+    blinkerRight();
     unsigned long startTime = millis();
     motorControl(0, 255, 255, 0);
     while (millis() - startTime < 150) { // Adjust the duration as needed
@@ -160,6 +155,7 @@ void right90() {
 
 //-------------LEFT 45 DEGREE
 void left45() {
+    blinkerLeft();
     unsigned long startTime = millis();
     motorControl(25, 0, 0, 100);
     while (millis() - startTime < 250) { // Adjust the duration as needed
@@ -169,6 +165,7 @@ void left45() {
 
 //-------------LEFT 90 DEGREE
 void left90() {
+    blinkerLeft();
     unsigned long startTime = millis();
     motorControl(255, 0, 0, 255);
     while (millis() - startTime < 150) { // Adjust the duration as needed
@@ -178,6 +175,7 @@ void left90() {
 
 //-------------STOP MOTOR CONTROL
 void stopMotorControl() {
+    regularLight();
     motorControl(0, 0, 0, 0);
 }
 
@@ -218,4 +216,66 @@ void ifrInformation(){
     if (millis() - lastMillis >= 100) { // 100 millisecond delay
         lastMillis = millis();
     }
+}
+
+//-----------------LICHT FUNCTIES
+//-------------DEFAULT INDICATOR PROGRAM
+ void blinkers(int boven, int onder) {
+    static unsigned long previousMillis = 0;
+    static bool ledState = false;  // Track LED state (on/off)
+
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - previousMillis >= 500) {  // Toggle every 100ms
+        previousMillis = currentMillis;  // Reset timer
+        ledState = !ledState;  // Flip LED state
+
+        if (ledState) {
+            strip.setPixelColor(boven, strip.Color(255, 69, 0));  // Orange ON
+            strip.setPixelColor(onder, strip.Color(255, 69, 0));  // Orange ON
+        } else {
+            strip.setPixelColor(boven, strip.Color(100, 0, 0));  // red
+            strip.setPixelColor(onder, strip.Color(100, 100, 100));  // white
+        }
+
+        strip.show();  // Update LEDs
+    }
+}
+
+//-------------LEFT BLINKER
+void blinkerLeft(){
+    strip.clear();
+    blinkers(0, 3);
+    strip.setPixelColor(1, strip.Color(150, 0, 0));  // red
+    strip.setPixelColor(2, strip.Color(50, 50, 50));  // white
+    strip.show();
+}
+
+//-------------RIGHT BLINKER
+void blinkerRight(){
+  strip.clear();
+  blinkers(1, 2);
+  strip.setPixelColor(0, strip.Color(150, 0, 0));  // red
+  strip.setPixelColor(3, strip.Color(50, 50, 50));  // white
+  strip.show();
+}
+
+//-------------BRAKE LIGHT
+void brakeLight(){
+  strip.clear();
+  strip.setPixelColor(0, strip.Color(255, 0, 0));  // red
+  strip.setPixelColor(1, strip.Color(255, 0, 0));  // red
+  strip.setPixelColor(2, strip.Color(100, 100, 100));  // white
+  strip.setPixelColor(3, strip.Color(100, 100, 100));  // white
+  strip.show();
+}
+
+//-------------DEFAULT LIGHT
+void regularLight(){
+  strip.clear();
+  strip.setPixelColor(0, strip.Color(50, 0, 0));  // red
+  strip.setPixelColor(1, strip.Color(50, 0, 0));  // red
+  strip.setPixelColor(2, strip.Color(255, 255, 255));  // white
+  strip.setPixelColor(3, strip.Color(255, 255, 255));  // white
+  strip.show();
 }
