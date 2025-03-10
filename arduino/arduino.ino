@@ -1,48 +1,48 @@
 /*
- * ==========================================================
- *  Project: Battlebots
- *  Board  : Arduino Nano
- *  Author : Robbin & Tobias Schipper
- *  Version: 1.0
- *  
- *
- * ==========================================================
- *  PINOUT ARDUINO NANO
- *  ---------------------------------------------------------
- *  | Pin | Functie      | Opmerking                        |
- *  |-----|-------------|----------------------------------|
- *  | D0  | RX          | Seriële communicatie (in)       |
- *  | D1  | TX          | Seriële communicatie (uit)      |
- *  | D2  | Digitaal I/O| Data pin voor neopixels         |
- *  | D3  | Digitaal I/O| Input IfrSensor ECHO            |
- *  | D4  | Digitaal I/O| MH-Sensor voor motor links      |
- *  | D5  | Digitaal I/O| PWM motor rechts -              |
- *  | D6  | Digitaal I/O| PWM motor rechts +              |
- *  | D7  | Digitaal I/O| Button 2                        |
- *  | D8  | Digitaal I/O| MH-Sensor rechts                |
- *  | D9  | Digitaal I/O| Output IfrSensor TRIG           |
- *  | D10 | Digitaal I/O| PWM motor links -               |
- *  | D11 | Digitaal I/O| PWM motor links +               |
- *  | D12 | Digitaal I/O| vrij                            |
- *  | D13 | Digitaal I/O| Input gripper                   |
- *  | A0  | Analoog In  | LijnSensor 1                    |
- *  | A1  | Analoog In  | LijnSensor 2                    |
- *  | A2  | Analoog In  | LijnSensor 3                    |
- *  | A3  | Analoog In  | LijnSensor 4                    |
- *  | A4  | Analoog In  | LijnSensor 5                    |
- *  | A5  | Analoog In  | LijnSensor 6                    |
- *  | A6  | Analoog In  | LijnSensor 7                    |
- *  | A7  | Analoog In  | LijnSensor 8                    |
- *  -------------------------------------------------------
- */
+* ==========================================================
+*  Project: Battlebots
+*  Board  : Arduino Nano
+*  Author : Robbin & Tobias Schipper
+*  Version: 1.0
+*  
+*
+* ==========================================================
+*  PINOUT ARDUINO NANO
+*  ---------------------------------------------------------
+*  | Pin | Functie      | Opmerking                        |
+*  |-----|-------------|----------------------------------|
+*  | D0  | RX          | Seriële communicatie (in)       |
+*  | D1  | TX          | Seriële communicatie (uit)      |
+*  | D2  | Digitaal I/O| Data pin voor neopixels         |
+*  | D3  | Digitaal I/O| Input IfrSensor ECHO            |
+*  | D4  | Digitaal I/O| MH-Sensor voor motor links      |
+*  | D5  | Digitaal I/O| PWM motor rechts -              |
+*  | D6  | Digitaal I/O| PWM motor rechts +              |
+*  | D7  | Digitaal I/O| Button 2                        |
+*  | D8  | Digitaal I/O| MH-Sensor rechts                |
+*  | D9  | Digitaal I/O| Output IfrSensor TRIG           |
+*  | D10 | Digitaal I/O| PWM motor links -               |
+*  | D11 | Digitaal I/O| PWM motor links +               |
+*  | D12 | Digitaal I/O| vrij                            |
+*  | D13 | Digitaal I/O| Input gripper                   |
+*  | A0  | Analoog In  | LijnSensor 1                    |
+*  | A1  | Analoog In  | LijnSensor 2                    |
+*  | A2  | Analoog In  | LijnSensor 3                    |
+*  | A3  | Analoog In  | LijnSensor 4                    |
+*  | A4  | Analoog In  | LijnSensor 5                    |
+*  | A5  | Analoog In  | LijnSensor 6                    |
+*  | A6  | Analoog In  | LijnSensor 7                    |
+*  | A7  | Analoog In  | LijnSensor 8                    |
+*  -------------------------------------------------------
+*/
 
- //-------------LIBRARIES-----------------------------------------
+//-------------LIBRARIES-----------------------------------------
 #include <Adafruit_NeoPixel.h>
 
 //-------------NEO PIXEL SETUP-----------------------------------
 #define PIN 2       // Data pin connected to DIN
 #define NUMPIXELS 4  // neopixel led count
-Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_RGB + NEO_KHZ800);
 
 //-------------PIN SETUP------------------------------------------
 #define MOTORA1 11  // Richting & PWM
@@ -69,7 +69,7 @@ float _DURATION, _DISTANCE;
 #define _NUM_SENSORS 8
 const int LineSensor[_NUM_SENSORS] = {A0, A1, A2, A3, A4, A5, A6, A7};
 
-  //-------------SETUP
+//-------------SETUP
 void setup() {
     Serial.begin(9600);
 
@@ -104,27 +104,31 @@ void setup() {
 void loop() {
     ifrSensor();
     ifrInformation();
+    if(_DISTANCE <= 10) {
+        stopMotorControl();
+        blinkerLeft();
+    }
+    else {
+        forward();
+    }
 }
+
 
 
 
 //--------------------BEWEGINGSFUNCTIES
 //-------------DEFAULT FUNCTION
 void motorControl(int motorA1, int motorA2, int motorB1, int motorB2) {
-    digitalWrite(MOTORA1, motorA1);
-    digitalWrite(MOTORA2, motorA2);
-    digitalWrite(MOTORB1, motorB1);
-    digitalWrite(MOTORB2, motorB2);
+    analogWrite(MOTORA1, motorA1);
+    analogWrite(MOTORA2, motorA2);
+    analogWrite(MOTORB1, motorB1);
+    analogWrite(MOTORB2, motorB2);
 }
 
 //-------------FORWARD
 void forward() {
     regularLight();
-    unsigned long startTime = millis();
-    motorControl(0, 1, 0, 250);
-    while (millis() - startTime < 1000) { // Adjust the duration as needed
-        // Wait for the desired duration in milliseconds
-    }
+    motorControl(0, 168, 0, 200);
 }
 
 //-------------BACKWARD
@@ -159,7 +163,7 @@ void left45() {
     unsigned long startTime = millis();
     motorControl(25, 0, 0, 100);
     while (millis() - startTime < 250) { // Adjust the duration as needed
-        // Wait for the desired duration in milliseconds
+    // Wait for the desired duration in milliseconds
     }
 }
 
@@ -220,7 +224,7 @@ void ifrInformation(){
 
 //-----------------LICHT FUNCTIES
 //-------------DEFAULT INDICATOR PROGRAM
-    void blinkers(int boven, int onder) {
+void blinkers(int boven, int onder) {
     static unsigned long previousMillis = 0;
     static bool ledState = false;  // Track LED state (on/off)
 
@@ -255,8 +259,8 @@ void blinkerLeft(){
 void blinkerRight(){
     strip.clear();
     blinkers(1, 2);
-  strip.setPixelColor(0, strip.Color(150, 0, 0));  // red
-  strip.setPixelColor(3, strip.Color(50, 50, 50));  // white
+    strip.setPixelColor(0, strip.Color(150, 0, 0));  // red
+    strip.setPixelColor(3, strip.Color(50, 50, 50));  // white
     strip.show();
 }
 
@@ -268,7 +272,7 @@ void brakeLight(){
     strip.setPixelColor(2, strip.Color(100, 100, 100));  // white
     strip.setPixelColor(3, strip.Color(100, 100, 100));  // white
     strip.show();
-}
+    }
 
 //-------------DEFAULT LIGHT
 void regularLight(){
