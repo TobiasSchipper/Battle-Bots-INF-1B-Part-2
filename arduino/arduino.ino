@@ -220,13 +220,13 @@ void ifrInformation(){
 
 //-----------------LICHT FUNCTIES
 //-------------DEFAULT INDICATOR PROGRAM
- void blinkers(int boven, int onder) {
+    void blinkers(int boven, int onder) {
     static unsigned long previousMillis = 0;
     static bool ledState = false;  // Track LED state (on/off)
 
     unsigned long currentMillis = millis();
 
-    if (currentMillis - previousMillis >= 500) {  // Toggle every 100ms
+    if (currentMillis - previousMillis >= 500) {  // Toggle every 500ms
         previousMillis = currentMillis;  // Reset timer
         ledState = !ledState;  // Flip LED state
 
@@ -253,29 +253,29 @@ void blinkerLeft(){
 
 //-------------RIGHT BLINKER
 void blinkerRight(){
-  strip.clear();
-  blinkers(1, 2);
+    strip.clear();
+    blinkers(1, 2);
   strip.setPixelColor(0, strip.Color(150, 0, 0));  // red
   strip.setPixelColor(3, strip.Color(50, 50, 50));  // white
-  strip.show();
+    strip.show();
 }
 
 //-------------BRAKE LIGHT
 void brakeLight(){
-  strip.clear();
-  strip.setPixelColor(0, strip.Color(255, 0, 0));  // red
-  strip.setPixelColor(1, strip.Color(255, 0, 0));  // red
-  strip.setPixelColor(2, strip.Color(100, 100, 100));  // white
-  strip.setPixelColor(3, strip.Color(100, 100, 100));  // white
-  strip.show();
+    strip.clear();
+    strip.setPixelColor(0, strip.Color(255, 0, 0));  // red
+    strip.setPixelColor(1, strip.Color(255, 0, 0));  // red
+    strip.setPixelColor(2, strip.Color(100, 100, 100));  // white
+    strip.setPixelColor(3, strip.Color(100, 100, 100));  // white
+    strip.show();
 }
 
 //-------------DEFAULT LIGHT
 void regularLight(){
-  strip.clear();
-  strip.setPixelColor(0, strip.Color(50, 0, 0));  // red
-  strip.setPixelColor(1, strip.Color(50, 0, 0));  // red
-  strip.setPixelColor(2, strip.Color(255, 255, 255));  // white
-  strip.setPixelColor(3, strip.Color(255, 255, 255));  // white
-  strip.show();
+    strip.clear();
+    strip.setPixelColor(0, strip.Color(50, 0, 0));  // red
+    strip.setPixelColor(1, strip.Color(50, 0, 0));  // red
+    strip.setPixelColor(2, strip.Color(255, 255, 255));  // white
+    strip.setPixelColor(3, strip.Color(255, 255, 255));  // white
+    strip.show();
 }
