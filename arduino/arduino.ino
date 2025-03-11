@@ -105,11 +105,10 @@ void loop() {
     ifrSensor();
     ifrInformation();
     if(_DISTANCE <= 10) {
-        stopMotorControl();
-        blinkerLeft();
+        right90();
     }
     else {
-        forward();
+        // stopMotorControl();
     }
 }
 
@@ -134,27 +133,27 @@ void forward() {
 //-------------BACKWARD
 void backward() {
     brakeLight();
-    motorControl(255, 0, 210, 0);
+    motorControl(168, 0, 200, 0);
 }
 
 //-------------RIGHT 45 DEGREE
-void right45() {
-    blinkerRight();
+void right45() {  
     unsigned long startTime = millis();
-    motorControl(0, 85, 50, 0);
-    while (millis() - startTime < 250) { // Adjust the duration as needed
-        // Wait for the desired duration in milliseconds
+    while (millis() - startTime < 1000) { 
+        motorControl(0, 255, 255, 0);
+        blinkerRight();
     }
+    stopMotorControl(); // Stop the motor after the turn
 }
 
 //-------------RIGHT 90 DEGREE
 void right90() {
-    blinkerRight();
     unsigned long startTime = millis();
-    motorControl(0, 255, 255, 0);
-    while (millis() - startTime < 150) { // Adjust the duration as needed
-        // Wait for the desired duration in milliseconds
+    while (millis() - startTime < 1000) { 
+        motorControl(0, 180, 180, 0);
+        blinkerRight();
     }
+    stopMotorControl(); // Stop the motor after the turn
 }
 
 //-------------LEFT 45 DEGREE
@@ -233,17 +232,17 @@ void blinkers(int boven, int onder) {
     if (currentMillis - previousMillis >= 500) {  // Toggle every 500ms
         previousMillis = currentMillis;  // Reset timer
         ledState = !ledState;  // Flip LED state
-
-        if (ledState) {
-            strip.setPixelColor(boven, strip.Color(255, 69, 0));  // Orange ON
-            strip.setPixelColor(onder, strip.Color(255, 69, 0));  // Orange ON
-        } else {
-            strip.setPixelColor(boven, strip.Color(100, 0, 0));  // red
-            strip.setPixelColor(onder, strip.Color(100, 100, 100));  // white
-        }
-
-        strip.show();  // Update LEDs
     }
+
+    if (ledState) {
+        strip.setPixelColor(boven, strip.Color(255, 69, 0));  // Orange ON
+        strip.setPixelColor(onder, strip.Color(255, 69, 0));  // Orange ON
+    } else {
+        strip.setPixelColor(boven, strip.Color(255, 0, 0));  // red
+        strip.setPixelColor(onder, strip.Color(255, 255, 255));  // white
+    }
+
+    strip.show();  // Update LEDs
 }
 
 //-------------LEFT BLINKER
