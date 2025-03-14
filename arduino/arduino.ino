@@ -104,16 +104,19 @@ void setup() {
 void loop() {
     ifrSensor();
     ifrInformation();
-    if(_DISTANCE <= 10) {
-        right90();
+    if(_DISTANCE <= 15) {
+        right45();
+        forward(1000);
+        left45();
+        forward(1500);
+        left45();
+        forward(1000);
+        right45();
     }
     else {
-        // stopMotorControl();
+        forward(0);
     }
 }
-
-
-
 
 //--------------------BEWEGINGSFUNCTIES
 //-------------DEFAULT FUNCTION
@@ -125,9 +128,10 @@ void motorControl(int motorA1, int motorA2, int motorB1, int motorB2) {
 }
 
 //-------------FORWARD
-void forward() {
+void forward(int interval) {
     regularLight();
     motorControl(0, 168, 0, 200);
+    delay(interval);
 }
 
 //-------------BACKWARD
@@ -139,7 +143,7 @@ void backward() {
 //-------------RIGHT 45 DEGREE
 void right45() {  
     unsigned long startTime = millis();
-    while (millis() - startTime < 1000) { 
+    while (millis() - startTime < 237) { 
         motorControl(0, 255, 255, 0);
         blinkerRight();
     }
@@ -149,8 +153,8 @@ void right45() {
 //-------------RIGHT 90 DEGREE
 void right90() {
     unsigned long startTime = millis();
-    while (millis() - startTime < 1000) { 
-        motorControl(0, 180, 180, 0);
+    while (millis() - startTime < 475) { 
+        motorControl(0, 255, 255, 0);
         blinkerRight();
     }
     stopMotorControl(); // Stop the motor after the turn
@@ -160,8 +164,8 @@ void right90() {
 void left45() {
     blinkerLeft();
     unsigned long startTime = millis();
-    motorControl(25, 0, 0, 100);
-    while (millis() - startTime < 250) { // Adjust the duration as needed
+    motorControl(255, 0, 0, 255);
+    while (millis() - startTime < 237) { // Adjust the duration as needed
     // Wait for the desired duration in milliseconds
     }
 }
@@ -171,7 +175,7 @@ void left90() {
     blinkerLeft();
     unsigned long startTime = millis();
     motorControl(255, 0, 0, 255);
-    while (millis() - startTime < 150) { // Adjust the duration as needed
+    while (millis() - startTime < 450) { // Adjust the duration as needed
         // Wait for the desired duration in milliseconds
     }
 }
@@ -210,7 +214,7 @@ void ifrSensor() {
 }
 
 //-------------HAAL AFSTAND OP VAN IFRSENSOR
-void ifrInformation(){
+void ifrInformation() {
     _DURATION = pulseIn(ECHOPIN, HIGH);
     _DISTANCE = (_DURATION*.0343)/2;
     Serial.print("Distance: ");
@@ -223,48 +227,54 @@ void ifrInformation(){
 
 //-----------------LICHT FUNCTIES
 //-------------DEFAULT INDICATOR PROGRAM
-void blinkers(int boven, int onder) {
+void blinkers(int boven, int onder, bool active) {
     static unsigned long previousMillis = 0;
-    static bool ledState = false;  // Track LED state (on/off)
-
+    static bool ledState = false;  // Ensure ledState is retained across calls
     unsigned long currentMillis = millis();
 
-    if (currentMillis - previousMillis >= 500) {  // Toggle every 500ms
-        previousMillis = currentMillis;  // Reset timer
-        ledState = !ledState;  // Flip LED state
+    if (active == true) {  // Alleen knipperen als "active" true is
+        if (currentMillis - previousMillis >= 500) {  
+            previousMillis = currentMillis;
+            ledState = !ledState;  // Toggle state
+        }
+    } else {
+        ledState = false;
+        previousMillis = 0;  // LED blijft uit als knipperen stopt
     }
 
     if (ledState) {
         strip.setPixelColor(boven, strip.Color(255, 69, 0));  // Orange ON
         strip.setPixelColor(onder, strip.Color(255, 69, 0));  // Orange ON
     } else {
-        strip.setPixelColor(boven, strip.Color(255, 0, 0));  // red
-        strip.setPixelColor(onder, strip.Color(255, 255, 255));  // white
+        strip.setPixelColor(boven, strip.Color(100, 0, 0));  // Red
+        strip.setPixelColor(onder, strip.Color(100, 100, 100)); // White
     }
 
-    strip.show();  // Update LEDs
+    strip.show();  // Update the strip to reflect changes
 }
 
+
+
 //-------------LEFT BLINKER
-void blinkerLeft(){
+void blinkerLeft() {
     strip.clear();
-    blinkers(0, 3);
+    blinkers(0, 3, true);
     strip.setPixelColor(1, strip.Color(150, 0, 0));  // red
-    strip.setPixelColor(2, strip.Color(50, 50, 50));  // white
+    strip.setPixelColor(2, strip.Color(100, 100, 100));  // white
     strip.show();
 }
 
 //-------------RIGHT BLINKER
-void blinkerRight(){
+void blinkerRight() {
     strip.clear();
-    blinkers(1, 2);
+    blinkers(1, 2, true);
     strip.setPixelColor(0, strip.Color(150, 0, 0));  // red
-    strip.setPixelColor(3, strip.Color(50, 50, 50));  // white
+    strip.setPixelColor(3, strip.Color(100, 100, 100));  // white
     strip.show();
 }
 
 //-------------BRAKE LIGHT
-void brakeLight(){
+void brakeLight() {
     strip.clear();
     strip.setPixelColor(0, strip.Color(255, 0, 0));  // red
     strip.setPixelColor(1, strip.Color(255, 0, 0));  // red
@@ -274,11 +284,11 @@ void brakeLight(){
     }
 
 //-------------DEFAULT LIGHT
-void regularLight(){
+void regularLight() {
     strip.clear();
     strip.setPixelColor(0, strip.Color(50, 0, 0));  // red
     strip.setPixelColor(1, strip.Color(50, 0, 0));  // red
-    strip.setPixelColor(2, strip.Color(255, 255, 255));  // white
-    strip.setPixelColor(3, strip.Color(255, 255, 255));  // white
+    strip.setPixelColor(2, strip.Color(150, 150, 150));  // white
+    strip.setPixelColor(3, strip.Color(150, 150, 150));  // white
     strip.show();
 }
