@@ -59,8 +59,9 @@ Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_RGB + NEO_KHZ800);
 #define ECHOPIN 3
 float _DURATION, _DISTANCE;
 
-//-------------Button Pin
-#define buttonPin2 7
+//-------------Button Setup
+#define BUTTONPIN2 7
+bool buttonState = 0;
 
 //-------------Gripper
 #define GRIPPER 13
@@ -83,7 +84,7 @@ void setup() {
     pinMode(SENSOR_R2, INPUT_PULLUP);
 
     // knop setup
-    pinMode(buttonPin2, INPUT);
+    pinMode(BUTTONPIN2, INPUT);
     //IFR Setup
     pinMode(TRIGPIN, OUTPUT);  
     pinMode(ECHOPIN, INPUT); 
@@ -102,19 +103,23 @@ void setup() {
 
 //-------------LOOP
 void loop() {
-    ifrSensor();
-    ifrInformation();
-    if(_DISTANCE <= 15) {
-        right45();
-        forward(1000);
-        left45();
-        forward(1500);
-        left45();
-        forward(1000);
-        right45();
-    }
-    else {
-        forward(0);
+    buttonState = digitalRead(BUTTONPIN2);
+
+    if (buttonState == LOW)
+    {
+        delay(500);
+        forward(5000);
+        delay(500);
+        backward(5000);
+        left90();
+        stopMotorControl();
+        delay(500);
+        forward(2000);
+        right90();
+        stopMotorControl();
+        delay(500);
+        forward(2000);
+        stopMotorControl;
     }
 }
 
@@ -130,14 +135,15 @@ void motorControl(int motorA1, int motorA2, int motorB1, int motorB2) {
 //-------------FORWARD
 void forward(int interval) {
     regularLight();
-    motorControl(0, 168, 0, 200);
+    motorControl(0, 178, 0, 215);
     delay(interval);
 }
 
 //-------------BACKWARD
-void backward() {
+void backward(int interval) {
     brakeLight();
-    motorControl(168, 0, 200, 0);
+    motorControl(178, 0, 220, 0);
+    delay(interval);
 }
 
 //-------------RIGHT 45 DEGREE
@@ -153,7 +159,7 @@ void right45() {
 //-------------RIGHT 90 DEGREE
 void right90() {
     unsigned long startTime = millis();
-    while (millis() - startTime < 475) { 
+    while (millis() - startTime < 450) { 
         motorControl(0, 255, 255, 0);
         blinkerRight();
     }
@@ -175,7 +181,7 @@ void left90() {
     blinkerLeft();
     unsigned long startTime = millis();
     motorControl(255, 0, 0, 255);
-    while (millis() - startTime < 450) { // Adjust the duration as needed
+    while (millis() - startTime < 400) { // Adjust the duration as needed
         // Wait for the desired duration in milliseconds
     }
 }
