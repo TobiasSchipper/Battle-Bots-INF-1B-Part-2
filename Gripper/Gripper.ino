@@ -25,14 +25,14 @@
 *  | D11 | Digitaal I/O| PWM motor links +               |
 *  | D12 | Digitaal I/O| vrij                            |
 *  | D13 | Digitaal I/O| Input gripper                   |
-*  | A0  | Analoog In  | LijnSensor 1 Rechts             |
+*  | A0  | Analoog In  | LijnSensor 1                    |
 *  | A1  | Analoog In  | LijnSensor 2                    |
 *  | A2  | Analoog In  | LijnSensor 3                    |
 *  | A3  | Analoog In  | LijnSensor 4                    |
 *  | A4  | Analoog In  | LijnSensor 5                    |
 *  | A5  | Analoog In  | LijnSensor 6                    |
 *  | A6  | Analoog In  | LijnSensor 7                    |
-*  | A7  | Analoog In  | LijnSensor 8 Links              |
+*  | A7  | Analoog In  | LijnSensor 8                    |
 *  -------------------------------------------------------
 */
 
@@ -70,10 +70,6 @@ bool buttonState = 0;
 #define _NUM_SENSORS 8
 const int LineSensor[_NUM_SENSORS] = {A0, A1, A2, A3, A4, A5, A6, A7};
 
-int _DEADZONELOW;
-int _DEADZONEHIGH;
-int  _LASTDISTANCE;
-
 //-------------SETUP
 void setup() {
     Serial.begin(9600);
@@ -107,13 +103,34 @@ void setup() {
 
 //-------------LOOP
 void loop() {
-    calibration();
-    mazeLine();
-    Serial.print("DEADZONELOW: ");
-    Serial.println(_DEADZONELOW);
+    buttonState = digitalRead(BUTTONPIN2);
 
-    Serial.print("DEADZONEHIGH: ");
-    Serial.println(_DEADZONEHIGH);
+    if (buttonState == LOW) {
+        unsigned long startTime = millis();  // Start time for the sequence
+
+        while (millis() - startTime < 7500) {
+            unsigned long elapsedTime = millis() - startTime;
+
+            if (elapsedTime < 100) {
+                gripperClosed();
+            } else if (elapsedTime < 1000) {
+                gripperOpen();
+            } else if (elapsedTime < 2500) {
+                forward();
+            } else if (elapsedTime < 3000) {
+                gripperClosed();
+            } else if (elapsedTime < 6000) {
+                forward();
+            } else if (elapsedTime < 7000) {
+                stopMotorControl();
+                gripperOpen();
+            } else if (elapsedTime < 7500) {
+                backward();
+            }
+        }
+    }
+    stopMotorControl();
+
 }
 
 //--------------------BEWEGINGSFUNCTIES
@@ -229,72 +246,6 @@ void ifrInformation() {
     if (millis() - lastMillis >= 100) { // 100 millisecond delay
         lastMillis = millis();
     }
-}
-
-//----------------LINE FOLLOWER
-void calibration() {
-
-}
-//-------------Maze Line Follower
-void mazeLine() {
-  bool setup;
-  int sensorReadings[_NUM_SENSORS]; 
-  if(setup)
-  {
-    int sum = 0; 
-
-    for (int i = 0; i < _NUM_SENSORS; i++) { 
-        sensorReadings[i] = analogRead(LineSensor[i]); 
-        sum += sensorReadings[i]; 
-    } 
-    int average = sum / _NUM_SENSORS;
-    int _DEADZONELOW = average - 50; 
-    int _DEADZONEHIGH = average + 50;
-    setup = !setup;
-  }
-    
-    if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) {
-        right90(); // Start the right turn
-        _LASTDISTANCE = 1;
-    } else if (sensorReadings[1] >= _DEADZONEHIGH && sensorReadings[2] >= _DEADZONEHIGH) {
-        right45(); // Start the right turn
-        _LASTDISTANCE = 1;
-    }
-
-    // if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) {
-    //     right45(); // Start the richt turn
-    //     _LASTDISTANCE = 1
-    // }
-    else if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) { 
-        forward(); // start the forward drive
-        _LASTDISTANCE = 0;
-    }
-
-    // else if (sensorReadings[4] >= deadzonehigh && sensorReadings[5] >= deadzonehigh) { 
-    //     left45(); // start the left turn
-    //     _LASTDISTANCE = -1;
-    // } 
-    else if (sensorReadings[5] >= _DEADZONEHIGH && sensorReadings[6] >= _DEADZONEHIGH) { 
-        left45(); // start the left turn
-        _LASTDISTANCE = -1;
-    } else if (sensorReadings[6] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
-        left90(); // start the left turn
-        _LASTDISTANCE = -1;
-    }   else if (sensorReadings[0] >= _DEADZONELOW && sensorReadings[1] >= _DEADZONELOW && sensorReadings[2] >= _DEADZONELOW && sensorReadings[3] >= _DEADZONELOW && sensorReadings[4] >= _DEADZONELOW && sensorReadings[5] >= _DEADZONELOW && sensorReadings[6] >= _DEADZONELOW && sensorReadings[7] >= _DEADZONELOW) { 
-        right90();
-    } else { 
-        if (_LASTDISTANCE == -1) { // Links
-            left90();
-        } else if (_LASTDISTANCE == 1) { // Rechts
-            right90();
-        } else if (_LASTDISTANCE == 0) { // Forward
-            forward();
-        } else { 
-            stopMotorControl(); 
-        } 
-    }
-
-    delay(50); 
 }
 
 //-----------------LICHT FUNCTIES
