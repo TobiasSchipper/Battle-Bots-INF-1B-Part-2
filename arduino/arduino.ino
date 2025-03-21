@@ -73,7 +73,7 @@ const int LineSensor[_NUM_SENSORS] = {A0, A1, A2, A3, A4, A5, A6, A7};
 int _DEADZONELOW;
 int _DEADZONEHIGH;
 int  _LASTDISTANCE;
-
+bool _ISSETUPDONE = false;
 //-------------SETUP
 void setup() {
     Serial.begin(9600);
@@ -107,7 +107,6 @@ void setup() {
 
 //-------------LOOP
 void loop() {
-    calibration();
     mazeLine();
     Serial.print("DEADZONELOW: ");
     Serial.println(_DEADZONELOW);
@@ -231,27 +230,23 @@ void ifrInformation() {
     }
 }
 
-//----------------LINE FOLLOWER
-void calibration() {
-
-}
 //-------------Maze Line Follower
 void mazeLine() {
-  bool setup;
-  int sensorReadings[_NUM_SENSORS]; 
-  if(setup)
-  {
+    
+    if(!_ISSETUPDONE)
+    {
+    int sensorReadings[_NUM_SENSORS]; 
     int sum = 0; 
-
     for (int i = 0; i < _NUM_SENSORS; i++) { 
         sensorReadings[i] = analogRead(LineSensor[i]); 
         sum += sensorReadings[i]; 
     } 
     int average = sum / _NUM_SENSORS;
-    int _DEADZONELOW = average - 50; 
-    int _DEADZONEHIGH = average + 50;
-    setup = !setup;
-  }
+    _DEADZONELOW = average - 50; 
+    _DEADZONEHIGH = average + 50;
+    _ISSETUPDONE = true;
+    }
+    int sensorReadings[_NUM_SENSORS]; 
     
     if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) {
         right90(); // Start the right turn
