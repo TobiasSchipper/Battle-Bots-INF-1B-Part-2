@@ -70,10 +70,19 @@ bool buttonState = 0;
 #define _NUM_SENSORS 8
 const int LineSensor[_NUM_SENSORS] = {A0, A1, A2, A3, A4, A5, A6, A7};
 
-int _DEADZONELOW;
-int _DEADZONEHIGH;
-int  _LASTDISTANCE;
-bool _ISSETUPDONE = false;
+int _DEADZONELOW = 0;
+int _DEADZONEHIGH = 0;
+int _LASTDISTANCE = 0;
+
+// Function declarations
+void regularLight();
+void brakeLight();
+void blinkerRight();
+void blinkerLeft();
+void stopMotorControl();
+void ifrSensor();
+void ifrInformation();
+
 //-------------SETUP
 void setup() {
     Serial.begin(9600);
@@ -136,44 +145,64 @@ void backward() {
     motorControl(178, 0, 220, 0);
 }
 
-//-------------RIGHT 45 DEGREE
-void right45() {  
-    unsigned long startTime = millis();
-    while (millis() - startTime < 237) { 
-        motorControl(0, 255, 255, 0);
-        blinkerRight();
-    }
-    stopMotorControl(); // Stop the motor after the turn
+//-------------RIGHT 30 DEGREE
+void right30() {  
+    motorControl(0, 185, 50, 0);
+    blinkerRight();
+}
+
+//-------------RIGHT 60 DEGREE
+void right60() {  
+    motorControl(0, 185, 0, 50);
+    blinkerRight();
 }
 
 //-------------RIGHT 90 DEGREE
 void right90() {
-    unsigned long startTime = millis();
-    while (millis() - startTime < 450) { 
-        motorControl(0, 255, 255, 0);
-        blinkerRight();
-    }
-    stopMotorControl(); // Stop the motor after the turn
+    motorControl(0, 185, 185, 0);
+    blinkerRight();
 }
 
-//-------------LEFT 45 DEGREE
-void left45() {
+//-------------LEFT 30 DEGREE
+void left30() {
     blinkerLeft();
-    unsigned long startTime = millis();
-    motorControl(255, 0, 0, 255);
-    while (millis() - startTime < 237) { // Adjust the duration as needed
-    // Wait for the desired duration in milliseconds
-    }
+    motorControl(50, 0, 0, 185);
+}
+
+//-------------LEFT 60 DEGREE
+void left60() {
+    blinkerLeft();
+    motorControl(0, 50, 0, 185);
 }
 
 //-------------LEFT 90 DEGREE
 void left90() {
     blinkerLeft();
-    unsigned long startTime = millis();
-    motorControl(255, 0, 0, 255);
-    while (millis() - startTime < 400) { // Adjust the duration as needed
-        // Wait for the desired duration in milliseconds
-    }
+    motorControl(185, 0, 0, 185);
+}
+
+//-------------LEFT 45 DEGREE
+void left45() {
+    blinkerLeft();
+    motorControl(128, 0, 0, 128);
+}
+
+//-------------RIGHT 45 DEGREE
+void right45() {
+    blinkerRight();
+    motorControl(0, 128, 128, 0);
+}
+
+//-------------LEFT 15 DEGREE
+void left15() {
+    blinkerLeft();
+    motorControl(0, 185, 0, 215);
+}
+
+//-------------RIGHT 15 DEGREE
+void right15() {
+    blinkerRight();
+    motorControl(0, 178, 0, 225);
 }
 
 //-------------STOP MOTOR CONTROL
@@ -232,56 +261,48 @@ void ifrInformation() {
 
 //-------------Maze Line Follower
 void mazeLine() {
-    
-    if(!_ISSETUPDONE)
-    {
     int sensorReadings[_NUM_SENSORS]; 
     int sum = 0; 
-    for (int i = 0; i < _NUM_SENSORS; i++) { 
-        sensorReadings[i] = analogRead(LineSensor[i]); 
-        sum += sensorReadings[i]; 
-    } 
-    int average = sum / _NUM_SENSORS;
-    _DEADZONELOW = average - 50; 
-    _DEADZONEHIGH = average + 50;
-    _ISSETUPDONE = true;
-    }
-    int sensorReadings[_NUM_SENSORS]; 
     
+    for (int i = 0; i < _NUM_SENSORS; i++) { 
+        sensorReadings[i] = analogRead(LineSensor[i]);
+        sum += sensorReadings[i]; 
+    }
+    
+    int average = sum / _NUM_SENSORS;
+    _DEADZONELOW = average - 50;
+    _DEADZONEHIGH = average + 50;
+
     if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) {
-        right90(); // Start the right turn
-        _LASTDISTANCE = 1;
-    } else if (sensorReadings[1] >= _DEADZONEHIGH && sensorReadings[2] >= _DEADZONEHIGH) {
         right45(); // Start the right turn
         _LASTDISTANCE = 1;
-    }
-
-    // if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) {
-    //     right45(); // Start the richt turn
-    //     _LASTDISTANCE = 1
-    // }
-    else if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) { 
-        forward(); // start the forward drive
-        _LASTDISTANCE = 0;
-    }
-
-    // else if (sensorReadings[4] >= deadzonehigh && sensorReadings[5] >= deadzonehigh) { 
-    //     left45(); // start the left turn
-    //     _LASTDISTANCE = -1;
-    // } 
-    else if (sensorReadings[5] >= _DEADZONEHIGH && sensorReadings[6] >= _DEADZONEHIGH) { 
-        left45(); // start the left turn
+    } else if (sensorReadings[1] >= _DEADZONEHIGH && sensorReadings[2] >= _DEADZONEHIGH) {
+        right30(); // Start the right turn
+        _LASTDISTANCE = 1;
+    } else if (sensorReadings[2] >= _DEADZONEHIGH || sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH || sensorReadings[5] >= _DEADZONEHIGH) {
+        if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) {
+            forward(); // start the forward drive
+            _LASTDISTANCE = 0;
+        } else if (sensorReadings[2] >= _DEADZONEHIGH && sensorReadings[3] >= _DEADZONEHIGH) {
+            left15();
+            _LASTDISTANCE = 0;
+        } else if(sensorReadings[4] >= _DEADZONEHIGH && sensorReadings[5] >= _DEADZONEHIGH) {
+            right15();
+            _LASTDISTANCE = 0;
+        }
+    } else if (sensorReadings[5] >= _DEADZONEHIGH && sensorReadings[6] >= _DEADZONEHIGH) { 
+        left30(); // start the left turn
         _LASTDISTANCE = -1;
     } else if (sensorReadings[6] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
-        left90(); // start the left turn
+        left45(); // start the left turn
         _LASTDISTANCE = -1;
-    }   else if (sensorReadings[0] >= _DEADZONELOW && sensorReadings[1] >= _DEADZONELOW && sensorReadings[2] >= _DEADZONELOW && sensorReadings[3] >= _DEADZONELOW && sensorReadings[4] >= _DEADZONELOW && sensorReadings[5] >= _DEADZONELOW && sensorReadings[6] >= _DEADZONELOW && sensorReadings[7] >= _DEADZONELOW) { 
-        right90();
+    } else if (sensorReadings[0] >= _DEADZONELOW && sensorReadings[1] >= _DEADZONELOW && sensorReadings[2] >= _DEADZONELOW && sensorReadings[3] >= _DEADZONELOW && sensorReadings[4] >= _DEADZONELOW && sensorReadings[5] >= _DEADZONELOW && sensorReadings[6] >= _DEADZONELOW && sensorReadings[7] >= _DEADZONELOW) { 
+        left90();
     } else { 
         if (_LASTDISTANCE == -1) { // Links
-            left90();
+            left45();
         } else if (_LASTDISTANCE == 1) { // Rechts
-            right90();
+            right45();
         } else if (_LASTDISTANCE == 0) { // Forward
             forward();
         } else { 
@@ -289,7 +310,13 @@ void mazeLine() {
         } 
     }
 
-    delay(50); 
+    Serial.println("Sensor Readings:");
+    for (int i = 0; i < 8; i++) {
+        Serial.print("i = ");
+        Serial.print(i);
+        Serial.print(", Value = ");
+        Serial.println(sensorReadings[i]);
+    }
 }
 
 //-----------------LICHT FUNCTIES
@@ -320,8 +347,6 @@ void blinkers(int boven, int onder, bool active) {
     strip.show();  // Update the strip to reflect changes
 }
 
-
-
 //-------------LEFT BLINKER
 void blinkerLeft() {
     strip.clear();
@@ -348,7 +373,7 @@ void brakeLight() {
     strip.setPixelColor(2, strip.Color(100, 100, 100));  // white
     strip.setPixelColor(3, strip.Color(100, 100, 100));  // white
     strip.show();
-    }
+}
 
 //-------------DEFAULT LIGHT
 void regularLight() {
