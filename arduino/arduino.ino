@@ -45,6 +45,7 @@
 Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_RGB + NEO_KHZ800);
 
 //-------------PIN SETUP------------------------------------------
+//-------------Links motor
 #define MOTORA1 11  // Richting & PWM
 #define MOTORA2 10  // Richting & PWM
 #define SENSOR_R1 4 // MH-sensor links
@@ -70,18 +71,11 @@ bool buttonState = 0;
 #define _NUM_SENSORS 8
 const int LineSensor[_NUM_SENSORS] = {A0, A1, A2, A3, A4, A5, A6, A7};
 
+int sensorReadings[_NUM_SENSORS];
+
 int _DEADZONELOW = 0;
 int _DEADZONEHIGH = 0;
 int _LASTDISTANCE = 0;
-
-// Function declarations
-void regularLight();
-void brakeLight();
-void blinkerRight();
-void blinkerLeft();
-void stopMotorControl();
-void ifrSensor();
-void ifrInformation();
 
 //-------------SETUP
 void setup() {
@@ -93,9 +87,6 @@ void setup() {
     pinMode(MOTORB1, OUTPUT);
     pinMode(MOTORB2, OUTPUT);
 
-    pinMode(SENSOR_R1, INPUT_PULLUP);
-    pinMode(SENSOR_R2, INPUT_PULLUP);
-
     // knop setup
     pinMode(BUTTONPIN2, INPUT);
     //IFR Setup
@@ -104,24 +95,20 @@ void setup() {
     //gripper setup
     pinMode(GRIPPER, OUTPUT); 
 
-    //Pixel setup
-    strip.begin();
-    strip.show(); // Initialize all pixels to 'off'
-
     // Zet alle sensors als input
     for (int i = 0; i < _NUM_SENSORS; i++) {
         pinMode(LineSensor[i], INPUT);
     }
+
+    //Pixel setup
+    strip.begin();
+    strip.show(); // Initialize all pixels to 'off'
 }
+
 
 //-------------LOOP
 void loop() {
     mazeLine();
-    Serial.print("DEADZONELOW: ");
-    Serial.println(_DEADZONELOW);
-
-    Serial.print("DEADZONEHIGH: ");
-    Serial.println(_DEADZONEHIGH);
 }
 
 //--------------------BEWEGINGSFUNCTIES
@@ -142,67 +129,31 @@ void forward() {
 //-------------BACKWARD
 void backward() {
     brakeLight();
-    motorControl(178, 0, 220, 0);
-}
-
-//-------------RIGHT 30 DEGREE
-void right30() {  
-    motorControl(0, 185, 50, 0);
-    blinkerRight();
-}
-
-//-------------RIGHT 60 DEGREE
-void right60() {  
-    motorControl(0, 185, 0, 50);
-    blinkerRight();
-}
-
-//-------------RIGHT 90 DEGREE
-void right90() {
-    motorControl(0, 185, 185, 0);
-    blinkerRight();
-}
-
-//-------------LEFT 30 DEGREE
-void left30() {
-    blinkerLeft();
-    motorControl(50, 0, 0, 185);
-}
-
-//-------------LEFT 60 DEGREE
-void left60() {
-    blinkerLeft();
-    motorControl(0, 50, 0, 185);
-}
-
-//-------------LEFT 90 DEGREE
-void left90() {
-    blinkerLeft();
-    motorControl(185, 0, 0, 185);
+    motorControl(188, 0, 230, 0);
 }
 
 //-------------LEFT 45 DEGREE
 void left45() {
     blinkerLeft();
-    motorControl(128, 0, 0, 128);
+    motorControl(0, 0, 0, 200);
 }
 
 //-------------RIGHT 45 DEGREE
 void right45() {
     blinkerRight();
-    motorControl(0, 128, 128, 0);
+    motorControl(0, 200, 0, 0);
 }
 
-//-------------LEFT 15 DEGREE
-void left15() {
+//-------------LEFT 45 DEGREE
+void left90() {
     blinkerLeft();
-    motorControl(0, 185, 0, 215);
+    motorControl(200, 0, 0, 200);
 }
 
-//-------------RIGHT 15 DEGREE
-void right15() {
+//-------------RIGHT 45 DEGREE
+void right90() {
     blinkerRight();
-    motorControl(0, 178, 0, 225);
+    motorControl(0, 200, 200, 0);
 }
 
 //-------------STOP MOTOR CONTROL
@@ -274,48 +225,40 @@ void mazeLine() {
     _DEADZONEHIGH = average + 50;
 
     if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) {
-        right45(); // Start the right turn
-        _LASTDISTANCE = 1;
+        left45(); // Start the left turn
+        _LASTDISTANCE = -1;
     } else if (sensorReadings[1] >= _DEADZONEHIGH && sensorReadings[2] >= _DEADZONEHIGH) {
-        right30(); // Start the right turn
-        _LASTDISTANCE = 1;
-    } else if (sensorReadings[2] >= _DEADZONEHIGH || sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH || sensorReadings[5] >= _DEADZONEHIGH) {
+        left45(); // Start the left turn
+        _LASTDISTANCE = -1;
+    } else if (sensorReadings[2] >= _DEADZONEHIGH || sensorReadings[3] >= _DEADZONEHIGH || sensorReadings[4] >= _DEADZONEHIGH || sensorReadings[5] >= _DEADZONEHIGH) {
         if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) {
             forward(); // start the forward drive
             _LASTDISTANCE = 0;
         } else if (sensorReadings[2] >= _DEADZONEHIGH && sensorReadings[3] >= _DEADZONEHIGH) {
-            left15();
-            _LASTDISTANCE = 0;
+            left45();
+            _LASTDISTANCE = -1;
         } else if(sensorReadings[4] >= _DEADZONEHIGH && sensorReadings[5] >= _DEADZONEHIGH) {
-            right15();
-            _LASTDISTANCE = 0;
+            right45();
+            _LASTDISTANCE = 1;
         }
     } else if (sensorReadings[5] >= _DEADZONEHIGH && sensorReadings[6] >= _DEADZONEHIGH) { 
-        left30(); // start the left turn
-        _LASTDISTANCE = -1;
+        right45(); // start the right turn
+        _LASTDISTANCE = 1;
     } else if (sensorReadings[6] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
-        left45(); // start the left turn
-        _LASTDISTANCE = -1;
+        right45(); // start the right turn
+        _LASTDISTANCE = 1;
     } else if (sensorReadings[0] >= _DEADZONELOW && sensorReadings[1] >= _DEADZONELOW && sensorReadings[2] >= _DEADZONELOW && sensorReadings[3] >= _DEADZONELOW && sensorReadings[4] >= _DEADZONELOW && sensorReadings[5] >= _DEADZONELOW && sensorReadings[6] >= _DEADZONELOW && sensorReadings[7] >= _DEADZONELOW) { 
-        left90();
+        stopMotorControl();
     } else { 
         if (_LASTDISTANCE == -1) { // Links
-            left45();
+            left90();
         } else if (_LASTDISTANCE == 1) { // Rechts
-            right45();
+            right90();
         } else if (_LASTDISTANCE == 0) { // Forward
             forward();
         } else { 
             stopMotorControl(); 
         } 
-    }
-
-    Serial.println("Sensor Readings:");
-    for (int i = 0; i < 8; i++) {
-        Serial.print("i = ");
-        Serial.print(i);
-        Serial.print(", Value = ");
-        Serial.println(sensorReadings[i]);
     }
 }
 
