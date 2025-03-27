@@ -40,32 +40,26 @@
 #include <Adafruit_NeoPixel.h>
 
 //-------------NEO PIXEL SETUP-----------------------------------
-#define PIN 2       // Data pin connected to DIN
+#define PIN 13       // Data pin connected to DIN
 #define NUMPIXELS 4  // neopixel led count
 Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_RGB + NEO_KHZ800);
 
 //-------------PIN SETUP------------------------------------------
 //-------------Links motor
-#define MOTORA1 11  // Richting & PWM
-#define MOTORA2 10  // Richting & PWM
-#define SENSOR_R1 4 // MH-sensor links
+#define MOTORA1 6  // Richting & PWM
+#define MOTORA2 11  // Richting & PWM
 
 //-------------Rechts motor
-#define MOTORB1 5   // Richting & PWM
-#define MOTORB2 6   // Richting & PWM
-#define SENSOR_R2 8 // MH-sensor rechts
+#define MOTORB1 5  // Richting & PWM
+#define MOTORB2 10   // Richting & PWM
 
 //-------------IFR Sensor
-#define TRIGPIN 9
-#define ECHOPIN 3
+#define TRIGPIN 8
+#define ECHOPIN 9
 float _DURATION, _DISTANCE;
 
-//-------------Button Setup
-#define BUTTONPIN2 7
-bool buttonState = 0;
-
 //-------------Gripper
-#define GRIPPER 13
+#define GRIPPER 12
 
 //-----------lijnsensor
 #define _NUM_SENSORS 8
@@ -78,9 +72,6 @@ int _LASTDISTANCE = 0;
 //-----------DEBUGGING
 //#define SENSORVALUE
 
-//-----------OVERIGE VARIABELEN
-bool isCalibrated = false;
-
 //-----------MOTOR SNELHEDEN
 #define FULLSPEED 255
 #define STEADY_SPEED 214
@@ -90,8 +81,7 @@ bool isCalibrated = false;
 #define SEARCH_SPEED 50
 
 //-----------LINEFOLLOW LOGIC
-int _lastDirection = 0;  // 0 = recht, -1 = links, 1 = rechts
-const float rightTurnSpeedFactor = 0.9; // Verlaag rechter motor met 10%
+int _lastDirection = 0;  // 0 = rechtdoor, -1 = links, 1 = rechts
 
 //-------------SETUP
 void setup() {
@@ -103,8 +93,6 @@ void setup() {
     pinMode(MOTORB1, OUTPUT);
     pinMode(MOTORB2, OUTPUT);
 
-    // knop setup
-    pinMode(BUTTONPIN2, INPUT);
     //IFR Setup
     pinMode(TRIGPIN, OUTPUT);  
     pinMode(ECHOPIN, INPUT); 
@@ -219,50 +207,43 @@ void mazeLine() {
         currentDirection = -1;
         regularLight();
         drive(FULLSPEED, -120);
-    }
-    else if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) { 
+    } else if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) { 
         currentDirection = 0;
         regularLight();
         drive(STEADY_SPEED, STEADY_SPEED);
-    }
-    else if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) { 
+    } else if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) { 
         currentDirection = 1;
         regularLight();
         drive(-120, FULLSPEED);
-    }
-    else if (sensorReadings[4] >= _DEADZONEHIGH && sensorReadings[5] >= _DEADZONEHIGH) { 
+    } else if (sensorReadings[4] >= _DEADZONEHIGH && sensorReadings[5] >= _DEADZONEHIGH) { 
         currentDirection = 3;
         regularLight();
         drive(STEADY_SPEED, 165);
-    }
-    else if (sensorReadings[5] >= _DEADZONEHIGH && sensorReadings[6] >= _DEADZONEHIGH) { 
+    } else if (sensorReadings[5] >= _DEADZONEHIGH && sensorReadings[6] >= _DEADZONEHIGH) { 
         currentDirection = 4;
         blinkerRight();
         drive(STEADY_SPEED, 35);
-    }
-    else if (sensorReadings[2] >= _DEADZONEHIGH && sensorReadings[3] >= _DEADZONEHIGH) { 
+    } else if (sensorReadings[2] >= _DEADZONEHIGH && sensorReadings[3] >= _DEADZONEHIGH) { 
         currentDirection = 5;
         regularLight();
         drive(165, STEADY_SPEED);
-    }
-    else if (sensorReadings[1] >= _DEADZONEHIGH && sensorReadings[2] >= _DEADZONEHIGH) { 
+    } else if (sensorReadings[1] >= _DEADZONEHIGH && sensorReadings[2] >= _DEADZONEHIGH) { 
         currentDirection = 6;
         blinkerLeft();
         drive(35, STEADY_SPEED);
-    }
-    else if (sum < _DEADZONELOW * _NUM_SENSORS) { 
+    } else if (sum < _DEADZONELOW * _NUM_SENSORS) {
         currentDirection = 7;
+        drive(255, -255);
         regularLight();
-        drive(-255, 255);
     }
 
     if (currentDirection != _lastDirection) {
     _lastDirection = currentDirection;
 
     switch (currentDirection) {
+        case -1: Serial.println("Rechts veel lijn -> draai links!"); break;
         case 0: Serial.println("Midden op lijn -> rechtdoor!"); break;
         case 1: Serial.println("Links veel lijn -> draai rechts!"); break;
-        case -1: Serial.println("Rechts veel lijn -> draai links!"); break;
         case 3: Serial.println("Iets rechts -> stuur beetje bij!"); break;
         case 4: Serial.println("Meer rechts -> stuur sterker bij!"); break;
         case 5: Serial.println("Iets links -> stuur beetje bij!"); break;
