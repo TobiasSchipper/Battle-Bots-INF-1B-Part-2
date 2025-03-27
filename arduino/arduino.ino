@@ -69,13 +69,29 @@ bool buttonState = 0;
 
 //-----------lijnsensor
 #define _NUM_SENSORS 8
-const int LineSensor[_NUM_SENSORS] = {A0, A1, A2, A3, A4, A5, A6, A7};
-
+const int LineSensor[_NUM_SENSORS] = {A7, A6, A5, A4, A3, A2, A1, A0};
 int sensorReadings[_NUM_SENSORS];
-
 int _DEADZONELOW = 0;
 int _DEADZONEHIGH = 0;
 int _LASTDISTANCE = 0;
+
+//-----------DEBUGGING
+//#define SENSORVALUE
+
+//-----------OVERIGE VARIABELEN
+bool isCalibrated = false;
+
+//-----------MOTOR SNELHEDEN
+#define FULLSPEED 255
+#define STEADY_SPEED 214
+#define SLOW_SPEED 180
+#define SLOWER_SPEED 60
+#define SLOWEST_SPEED 10
+#define SEARCH_SPEED 50
+
+//-----------LINEFOLLOW LOGIC
+int _lastDirection = 0;  // 0 = recht, -1 = links, 1 = rechts
+const float rightTurnSpeedFactor = 0.9; // Verlaag rechter motor met 10%
 
 //-------------SETUP
 void setup() {
@@ -121,46 +137,20 @@ void motorControl(int motorA1, int motorA2, int motorB1, int motorB2) {
 }
 
 //-------------FORWARD
-void forward() {
-    regularLight();
-    motorControl(0, 178, 0, 215);
+void drive(int left, int right) { 
+    analogWrite(MOTORA1, max(0, -left)); 
+    analogWrite(MOTORA2, max(0, left)); 
+    analogWrite(MOTORB1, max(0, -right)); 
+    analogWrite(MOTORB2, max(0, right)); 
 }
 
-//-------------BACKWARD
-void backward() {
+void stop() { 
     brakeLight();
-    motorControl(188, 0, 230, 0);
-}
-
-//-------------LEFT 45 DEGREE
-void left45() {
-    blinkerLeft();
-    motorControl(0, 0, 0, 200);
-}
-
-//-------------RIGHT 45 DEGREE
-void right45() {
-    blinkerRight();
-    motorControl(0, 200, 0, 0);
-}
-
-//-------------LEFT 45 DEGREE
-void left90() {
-    blinkerLeft();
-    motorControl(200, 0, 0, 200);
-}
-
-//-------------RIGHT 45 DEGREE
-void right90() {
-    blinkerRight();
-    motorControl(0, 200, 200, 0);
-}
-
-//-------------STOP MOTOR CONTROL
-void stopMotorControl() {
-    regularLight();
-    motorControl(0, 0, 0, 0);
-}
+    analogWrite(MOTORA1, 0); 
+    analogWrite(MOTORA2, 0); 
+    analogWrite(MOTORB1, 0); 
+    analogWrite(MOTORB2, 0); 
+} 
 
 //-------------GRIPPER FUNCTIE
 void gripper(int pulse) {
@@ -223,43 +213,64 @@ void mazeLine() {
     int average = sum / _NUM_SENSORS;
     _DEADZONELOW = average - 50;
     _DEADZONEHIGH = average + 50;
+    int currentDirection = 0;
 
-    if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) {
-        left45(); // Start the left turn
-        _LASTDISTANCE = -1;
-    } else if (sensorReadings[1] >= _DEADZONEHIGH && sensorReadings[2] >= _DEADZONEHIGH) {
-        left45(); // Start the left turn
-        _LASTDISTANCE = -1;
-    } else if (sensorReadings[2] >= _DEADZONEHIGH || sensorReadings[3] >= _DEADZONEHIGH || sensorReadings[4] >= _DEADZONEHIGH || sensorReadings[5] >= _DEADZONEHIGH) {
-        if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) {
-            forward(); // start the forward drive
-            _LASTDISTANCE = 0;
-        } else if (sensorReadings[2] >= _DEADZONEHIGH && sensorReadings[3] >= _DEADZONEHIGH) {
-            left45();
-            _LASTDISTANCE = -1;
-        } else if(sensorReadings[4] >= _DEADZONEHIGH && sensorReadings[5] >= _DEADZONEHIGH) {
-            right45();
-            _LASTDISTANCE = 1;
-        }
-    } else if (sensorReadings[5] >= _DEADZONEHIGH && sensorReadings[6] >= _DEADZONEHIGH) { 
-        right45(); // start the right turn
-        _LASTDISTANCE = 1;
-    } else if (sensorReadings[6] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
-        right45(); // start the right turn
-        _LASTDISTANCE = 1;
-    } else if (sensorReadings[0] >= _DEADZONELOW && sensorReadings[1] >= _DEADZONELOW && sensorReadings[2] >= _DEADZONELOW && sensorReadings[3] >= _DEADZONELOW && sensorReadings[4] >= _DEADZONELOW && sensorReadings[5] >= _DEADZONELOW && sensorReadings[6] >= _DEADZONELOW && sensorReadings[7] >= _DEADZONELOW) { 
-        stopMotorControl();
-    } else { 
-        if (_LASTDISTANCE == -1) { // Links
-            left90();
-        } else if (_LASTDISTANCE == 1) { // Rechts
-            right90();
-        } else if (_LASTDISTANCE == 0) { // Forward
-            forward();
-        } else { 
-            stopMotorControl(); 
-        } 
+    if (sensorReadings[6] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
+        currentDirection = -1;
+        regularLight();
+        drive(FULLSPEED, -120);
     }
+    else if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) { 
+        currentDirection = 0;
+        regularLight();
+        drive(STEADY_SPEED, STEADY_SPEED);
+    }
+    else if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) { 
+        currentDirection = 1;
+        regularLight();
+        drive(-120, FULLSPEED);
+    }
+    else if (sensorReadings[4] >= _DEADZONEHIGH && sensorReadings[5] >= _DEADZONEHIGH) { 
+        currentDirection = 3;
+        regularLight();
+        drive(STEADY_SPEED, 165);
+    }
+    else if (sensorReadings[5] >= _DEADZONEHIGH && sensorReadings[6] >= _DEADZONEHIGH) { 
+        currentDirection = 4;
+        blinkerRight();
+        drive(STEADY_SPEED, 35);
+    }
+    else if (sensorReadings[2] >= _DEADZONEHIGH && sensorReadings[3] >= _DEADZONEHIGH) { 
+        currentDirection = 5;
+        regularLight();
+        drive(165, STEADY_SPEED);
+    }
+    else if (sensorReadings[1] >= _DEADZONEHIGH && sensorReadings[2] >= _DEADZONEHIGH) { 
+        currentDirection = 6;
+        blinkerLeft();
+        drive(35, STEADY_SPEED);
+    }
+    else if (sum < _DEADZONELOW * _NUM_SENSORS) { 
+        currentDirection = 7;
+        regularLight();
+        drive(-255, 255);
+    }
+
+    if (currentDirection != _lastDirection) {
+    _lastDirection = currentDirection;
+
+    switch (currentDirection) {
+        case 0: Serial.println("Midden op lijn -> rechtdoor!"); break;
+        case 1: Serial.println("Links veel lijn -> draai rechts!"); break;
+        case -1: Serial.println("Rechts veel lijn -> draai links!"); break;
+        case 3: Serial.println("Iets rechts -> stuur beetje bij!"); break;
+        case 4: Serial.println("Meer rechts -> stuur sterker bij!"); break;
+        case 5: Serial.println("Iets links -> stuur beetje bij!"); break;
+        case 6: Serial.println("Meer links -> stuur sterker bij!"); break;
+        case 7: Serial.println("Geen lijn -> draai zoeken..."); break;
+        }
+    }
+    delay(50);
 }
 
 //-----------------LICHT FUNCTIES
