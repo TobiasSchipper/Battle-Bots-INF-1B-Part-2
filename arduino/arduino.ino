@@ -13,18 +13,18 @@
 *  |-----|-------------|----------------------------------|
 *  | D0  | RX          | Seriële communicatie (in)       |
 *  | D1  | TX          | Seriële communicatie (uit)      |
-*  | D2  | Digitaal I/O| Data pin voor neopixels         |
-*  | D3  | Digitaal I/O| Input IfrSensor ECHO            |
-*  | D4  | Digitaal I/O| MH-Sensor voor motor links      |
-*  | D5  | Digitaal I/O| PWM motor rechts -              |
-*  | D6  | Digitaal I/O| PWM motor rechts +              |
-*  | D7  | Digitaal I/O| Button 2                        |
-*  | D8  | Digitaal I/O| MH-Sensor rechts                |
-*  | D9  | Digitaal I/O| Output IfrSensor TRIG           |
-*  | D10 | Digitaal I/O| PWM motor links -               |
-*  | D11 | Digitaal I/O| PWM motor links +               |
-*  | D12 | Digitaal I/O| vrij                            |
-*  | D13 | Digitaal I/O| Input gripper                   |
+*  | D2  | Digitaal I/O| vrij                            |
+*  | D3  | Digitaal I/O| vrij                            |
+*  | D4  | Digitaal I/O| vrij                            |
+*  | D5  | Digitaal I/O| PWM motor rechts B1             |
+*  | D6  | Digitaal I/O| PWM motor links A1              |
+*  | D7  | Digitaal I/O| vrij                            |
+*  | D8  | Digitaal I/O| IfrSensor Trig                  |
+*  | D9  | Digitaal I/O| IfrSensor Echo                  |
+*  | D10 | Digitaal I/O| PWM motor rechts B2             |
+*  | D11 | Digitaal I/O| PWM motor links A2              |
+*  | D12 | Digitaal I/O| input Gripper                   |
+*  | D13 | Digitaal I/O| Data pin voor Neopixels         |
 *  | A0  | Analoog In  | LijnSensor 1 Rechts             |
 *  | A1  | Analoog In  | LijnSensor 2                    |
 *  | A2  | Analoog In  | LijnSensor 3                    |
@@ -39,19 +39,19 @@
 //-------------LIBRARIES-----------------------------------------
 #include <Adafruit_NeoPixel.h>
 
-//-------------NEO PIXEL SETUP-----------------------------------
+//-------------NEO PIXEL SETUP------------------------------------
 #define PIN 13       // Data pin connected to DIN
 #define NUMPIXELS 4  // neopixel led count
 Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_RGB + NEO_KHZ800);
 
 //-------------PIN SETUP------------------------------------------
 //-------------Links motor
-#define MOTORA1 6  // Richting & PWM
-#define MOTORA2 11  // Richting & PWM
+#define motor_L1 6
+#define motor_L2 11
 
 //-------------Rechts motor
-#define MOTORB1 5  // Richting & PWM
-#define MOTORB2 10   // Richting & PWM
+#define motor_R1 10
+#define motor_R2 5
 
 //-------------IFR Sensor
 #define TRIGPIN 8
@@ -72,32 +72,49 @@ int _LASTDISTANCE = 0;
 //-----------DEBUGGING
 //#define SENSORVALUE
 
-//-----------MOTOR SNELHEDEN
+//-----------MOTOR SPEEDS
 #define FULLSPEED 255
 #define STEADY_SPEED 214
 #define SLOW_SPEED 180
 #define SLOWER_SPEED 60
 #define SLOWEST_SPEED 10
 #define SEARCH_SPEED 50
+#define BW_SEARCH_SPEED -50
+#define BW_SLOWEST_SPEED -10
+#define BW_SLOWER_SPEED -60
+#define BW_SLOW_SPEED -100
+#define BW_STEADY_SPEED -214
+#define BW_FULLSPEED -255
 
 //-----------LINEFOLLOW LOGIC
 int _lastDirection = 0;  // 0 = rechtdoor, -1 = links, 1 = rechts
+bool isTurning = false;  // Houdt bij of de robot aan het draaien is
+bool lastTurnRight = true; // Houdt bij of de laatste draai naar rechts was
+unsigned long turnStartTime = 0; // Stores the start time of the turn
+const unsigned long sharpTurnDuration = 400; // Duration for sharp turns in milliseconds
 
 //-------------SETUP
 void setup() {
     Serial.begin(9600);
 
     //motor setup
-    pinMode(MOTORA1, OUTPUT);
-    pinMode(MOTORA2, OUTPUT);
-    pinMode(MOTORB1, OUTPUT);
-    pinMode(MOTORB2, OUTPUT);
-
+    pinMode(motor_L1, OUTPUT);
+    pinMode(motor_L2, OUTPUT);
+    pinMode(motor_R1, OUTPUT);
+    pinMode(motor_R2, OUTPUT); 
     //IFR Setup
     pinMode(TRIGPIN, OUTPUT);  
     pinMode(ECHOPIN, INPUT); 
     //gripper setup
     pinMode(GRIPPER, OUTPUT); 
+
+    //output op uit zetten
+    digitalWrite(motor_L1, HIGH);
+    digitalWrite(motor_L2, HIGH);
+    digitalWrite(motor_R1, HIGH);
+    digitalWrite(motor_R1, HIGH);
+    digitalWrite(TRIGPIN, HIGH);
+    digitalWrite(GRIPPER, HIGH);
 
     // Zet alle sensors als input
     for (int i = 0; i < _NUM_SENSORS; i++) {
@@ -116,28 +133,23 @@ void loop() {
 }
 
 //--------------------BEWEGINGSFUNCTIES
-//-------------DEFAULT FUNCTION
-void motorControl(int motorA1, int motorA2, int motorB1, int motorB2) {
-    analogWrite(MOTORA1, motorA1);
-    analogWrite(MOTORA2, motorA2);
-    analogWrite(MOTORB1, motorB1);
-    analogWrite(MOTORB2, motorB2);
+//-------------MOTOR CONTROL
+void motorControl(int leftForward, int leftBackward, int rightForward, int rightBackward) {
+    // Left motor control
+    analogWrite(motor_L1, leftBackward); // Backward motion
+    analogWrite(motor_L2, leftForward); // Forward motion
+
+    // Right motor control
+    analogWrite(motor_R1, rightBackward); // Backward motion
+    analogWrite(motor_R2, rightForward); // Forward motion
 }
 
-//-------------FORWARD
-void drive(int left, int right) { 
-    analogWrite(MOTORA1, max(0, -left)); 
-    analogWrite(MOTORA2, max(0, left)); 
-    analogWrite(MOTORB1, max(0, -right)); 
-    analogWrite(MOTORB2, max(0, right)); 
-}
-
-void stop() { 
+void stopMotorControl() { 
     brakeLight();
-    analogWrite(MOTORA1, 0); 
-    analogWrite(MOTORA2, 0); 
-    analogWrite(MOTORB1, 0); 
-    analogWrite(MOTORB2, 0); 
+    analogWrite(motor_L1, 0); 
+    analogWrite(motor_L2, 0); 
+    analogWrite(motor_R1, 0); 
+    analogWrite(motor_R2, 0); 
 } 
 
 //-------------GRIPPER FUNCTIE
@@ -201,45 +213,83 @@ void mazeLine() {
     int average = sum / _NUM_SENSORS;
     _DEADZONELOW = average - 50;
     _DEADZONEHIGH = average + 50;
-    int currentDirection = 0;
+    static int currentDirection = 0; // Use static to retain the value between function calls
 
-    if (sensorReadings[6] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
-        currentDirection = -1;
-        regularLight();
-        drive(FULLSPEED, -120);
-    } else if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) { 
-        currentDirection = 0;
-        regularLight();
-        drive(STEADY_SPEED, STEADY_SPEED);
-    } else if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) { 
-        currentDirection = 1;
-        regularLight();
-        drive(-120, FULLSPEED);
-    } else if (sensorReadings[4] >= _DEADZONEHIGH && sensorReadings[5] >= _DEADZONEHIGH) { 
-        currentDirection = 3;
-        regularLight();
-        drive(STEADY_SPEED, 165);
-    } else if (sensorReadings[5] >= _DEADZONEHIGH && sensorReadings[6] >= _DEADZONEHIGH) { 
-        currentDirection = 4;
-        blinkerRight();
-        drive(STEADY_SPEED, 35);
-    } else if (sensorReadings[2] >= _DEADZONEHIGH && sensorReadings[3] >= _DEADZONEHIGH) { 
-        currentDirection = 5;
-        regularLight();
-        drive(165, STEADY_SPEED);
-    } else if (sensorReadings[1] >= _DEADZONEHIGH && sensorReadings[2] >= _DEADZONEHIGH) { 
-        currentDirection = 6;
-        blinkerLeft();
-        drive(35, STEADY_SPEED);
-    } else if (sum < _DEADZONELOW * _NUM_SENSORS) {
-        currentDirection = 7;
-        drive(255, -255);
-        regularLight();
+    // Timer for Serial.print delay
+    static unsigned long lastPrintTime = 0;
+    unsigned long currentTime = millis();
+
+    // Debugging: Print sensor readings with delay
+    if (currentTime - lastPrintTime >= 500) { // Print every 500ms
+        lastPrintTime = currentTime;
+        Serial.print("Sensor Readings: ");
+        for (int i = 0; i < _NUM_SENSORS; i++) {
+            Serial.print(sensorReadings[i]);
+            Serial.print(" ");
+        }
+        Serial.println();
     }
 
-    if (currentDirection != _lastDirection) {
-    _lastDirection = currentDirection;
+    // Prioritize left corners
+    if (sensorReadings[6] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
+        currentDirection = -1; // Sharp left turn
+        motorControl(0, SLOW_SPEED, FULLSPEED, 0); // Left motor backward, right motor forward
+    } 
+    // Handle T-splits (always prioritize left turn)
+    else if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
+        currentDirection = 8; // T-split detected
+        if (sensorReadings[6] >= _DEADZONEHIGH) { 
+            currentDirection = -1; // Turn left
+            motorControl(0, SLOW_SPEED, FULLSPEED, 0); // Left motor backward, right motor forward
+        } else if (sensorReadings[1] >= _DEADZONEHIGH) { 
+            currentDirection = 1; // Turn right
+            motorControl(FULLSPEED, 0, 0, SLOW_SPEED); // Left motor forward, right motor backward
+        } else {
+            currentDirection = 0; // Move forward
+            motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0); 
+        }
+    } 
+    // Detect right corners
+    else if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) { 
+        currentDirection = 1; // Sharp right turn
+        motorControl(FULLSPEED, 0, 0, SLOW_SPEED); // Left motor forward, right motor backward
+    } 
+    // Then check for forward movement
+    else if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) { 
+        currentDirection = 0; // Move forward
+        motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0); // Both motors forward
+    } 
+    // Handle slight adjustments
+    else if (sensorReadings[4] >= _DEADZONEHIGH && sensorReadings[5] >= _DEADZONEHIGH) { 
+        currentDirection = 3; // Slight right adjustment
+        motorControl(STEADY_SPEED, 0, SLOW_SPEED, 0); // Adjusted motor speeds
+    } else if (sensorReadings[5] >= _DEADZONEHIGH && sensorReadings[6] >= _DEADZONEHIGH) { 
+        currentDirection = 4; // Stronger right adjustment
+        motorControl(STEADY_SPEED, 0, SLOWER_SPEED, 0); // Adjusted motor speeds
+    } else if (sensorReadings[2] >= _DEADZONEHIGH && sensorReadings[3] >= _DEADZONEHIGH) { 
+        currentDirection = 5; // Slight left adjustment
+        motorControl(SLOW_SPEED, 0, STEADY_SPEED, 0); // Adjusted motor speeds
+    } else if (sensorReadings[1] >= _DEADZONEHIGH && sensorReadings[2] >= _DEADZONEHIGH) { 
+        currentDirection = 6; // Stronger left adjustment
+        motorControl(SLOWER_SPEED, 0, STEADY_SPEED, 0); // Adjusted motor speeds
+    } 
+    // Handle dead ends or line loss
+    else if (sum < _DEADZONELOW * _NUM_SENSORS) {
+        Serial.println("Dead end detected!");
+        if (currentDirection == -1) {
+            // If the last direction was left, continue turning left
+            motorControl(0, SLOW_SPEED, FULLSPEED, 0); // Left motor backward, right motor forward
+        } else if (currentDirection == 1) {
+            // If the last direction was right, continue turning right
+            motorControl(FULLSPEED, 0, 0, SLOW_SPEED); // Left motor forward, right motor backward
+        } else {
+            // Otherwise, perform a 180-degree turn
+            motorControl(SLOW_SPEED, 0, 0, SLOW_SPEED);
+        }
+        stopMotorControl();
+    }
 
+    // Debugging output
     switch (currentDirection) {
         case -1: Serial.println("Rechts veel lijn -> draai links!"); break;
         case 0: Serial.println("Midden op lijn -> rechtdoor!"); break;
@@ -249,9 +299,23 @@ void mazeLine() {
         case 5: Serial.println("Iets links -> stuur beetje bij!"); break;
         case 6: Serial.println("Meer links -> stuur sterker bij!"); break;
         case 7: Serial.println("Geen lijn -> draai zoeken..."); break;
-        }
+        case 8: Serial.println("T-split detected!"); break;
     }
-    delay(50);
+
+    // Update lights based on direction
+    switch (currentDirection) {
+        case -1: blinkerLeft(); break;
+        case 0: regularLight(); break;
+        case 1: blinkerRight(); break;
+        case 3: regularLight(); break;
+        case 4: blinkerRight(); break;
+        case 5: regularLight(); break;
+        case 6: blinkerLeft(); break;
+        case 7: blinkerRight(); break;
+        default: regularLight(); break;
+    }
+
+    delay(50); // Small delay to stabilize the loop
 }
 
 //-----------------LICHT FUNCTIES
@@ -262,7 +326,7 @@ void blinkers(int boven, int onder, bool active) {
     unsigned long currentMillis = millis();
 
     if (active == true) {  // Alleen knipperen als "active" true is
-        if (currentMillis - previousMillis >= 500) {  
+        if (currentMillis - previousMillis >= 250) {  
             previousMillis = currentMillis;
             ledState = !ledState;  // Toggle state
         }
