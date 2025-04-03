@@ -92,6 +92,8 @@ bool isTurning = false;  // Houdt bij of de robot aan het draaien is
 bool lastTurnRight = true; // Houdt bij of de laatste draai naar rechts was
 unsigned long turnStartTime = 0; // Stores the start time of the turn
 const unsigned long sharpTurnDuration = 400; // Duration for sharp turns in milliseconds
+unsigned long previousMillis = 0;  // Variabele om de tijd bij te houden
+const long interval = 10; 
 
 //-------------SETUP
 void setup() {
@@ -112,7 +114,7 @@ void setup() {
     digitalWrite(motor_L1, HIGH);
     digitalWrite(motor_L2, HIGH);
     digitalWrite(motor_R1, HIGH);
-    digitalWrite(motor_R1, HIGH);
+    digitalWrite(motor_R2, HIGH);
     digitalWrite(TRIGPIN, HIGH);
     digitalWrite(GRIPPER, HIGH);
 
@@ -213,46 +215,30 @@ void mazeLine() {
     int average = sum / _NUM_SENSORS;
     _DEADZONELOW = average - 50;
     _DEADZONEHIGH = average + 50;
-    static int currentDirection = 0; // Use static to retain the value between function calls
-
-    // Timer for Serial.print delay
-    static unsigned long lastPrintTime = 0;
-    unsigned long currentTime = millis();
-
-    // Debugging: Print sensor readings with delay
-    if (currentTime - lastPrintTime >= 500) { // Print every 500ms
-        lastPrintTime = currentTime;
-        Serial.print("Sensor Readings: ");
-        for (int i = 0; i < _NUM_SENSORS; i++) {
-            Serial.print(sensorReadings[i]);
-            Serial.print(" ");
-        }
-        Serial.println();
-    }
+    int currentDirection = 0;
 
     // Prioritize left corners
     if (sensorReadings[6] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
         currentDirection = -1; // Sharp left turn
-        motorControl(0, SLOW_SPEED, FULLSPEED, 0); // Left motor backward, right motor forward
+        motorControl(FULLSPEED, 0, 0, SLOW_SPEED); // Left motor forward, right motor backward
     } 
     // Handle T-splits (always prioritize left turn)
     else if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
         currentDirection = 8; // T-split detected
         if (sensorReadings[6] >= _DEADZONEHIGH) { 
-            currentDirection = -1; // Turn left
-            motorControl(0, SLOW_SPEED, FULLSPEED, 0); // Left motor backward, right motor forward
+            motorControl(SLOW_SPEED, 0, 0, SLOW_SPEED); // Turn left
+            currentDirection = -1; 
         } else if (sensorReadings[1] >= _DEADZONEHIGH) { 
-            currentDirection = 1; // Turn right
-            motorControl(FULLSPEED, 0, 0, SLOW_SPEED); // Left motor forward, right motor backward
+            motorControl(0, SLOW_SPEED, SLOW_SPEED, 0); // Turn right
+            currentDirection = 1; 
         } else {
-            currentDirection = 0; // Move forward
-            motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0); 
+            motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0); // Move forward
         }
     } 
-    // Detect right corners
+    // Then check for right corners
     else if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) { 
         currentDirection = 1; // Sharp right turn
-        motorControl(FULLSPEED, 0, 0, SLOW_SPEED); // Left motor forward, right motor backward
+        motorControl(0, SLOW_SPEED, SLOW_SPEED, 0); // Left motor backward, right motor forward
     } 
     // Then check for forward movement
     else if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) { 
@@ -273,33 +259,24 @@ void mazeLine() {
         currentDirection = 6; // Stronger left adjustment
         motorControl(SLOWER_SPEED, 0, STEADY_SPEED, 0); // Adjusted motor speeds
     } 
-    // Handle dead ends or line loss
+    // Handle dead ends
     else if (sum < _DEADZONELOW * _NUM_SENSORS) {
-        Serial.println("Dead end detected!");
-        if (currentDirection == -1) {
-            // If the last direction was left, continue turning left
-            motorControl(0, SLOW_SPEED, FULLSPEED, 0); // Left motor backward, right motor forward
-        } else if (currentDirection == 1) {
-            // If the last direction was right, continue turning right
-            motorControl(FULLSPEED, 0, 0, SLOW_SPEED); // Left motor forward, right motor backward
-        } else {
-            // Otherwise, perform a 180-degree turn
-            motorControl(SLOW_SPEED, 0, 0, SLOW_SPEED);
-        }
+        currentDirection = 7; // Dead end detected
+        motorControl(SLOW_SPEED, 0, 0, SLOW_SPEED); // Perform a 180-degree turn
         stopMotorControl();
     }
 
     // Debugging output
     switch (currentDirection) {
-        case -1: Serial.println("Rechts veel lijn -> draai links!"); break;
+        case -1: Serial.println("Bocht naar links -> draai links!"); break;
         case 0: Serial.println("Midden op lijn -> rechtdoor!"); break;
-        case 1: Serial.println("Links veel lijn -> draai rechts!"); break;
+        case 1: Serial.println("Bocht naar rechts -> draai rechts!"); break;
         case 3: Serial.println("Iets rechts -> stuur beetje bij!"); break;
         case 4: Serial.println("Meer rechts -> stuur sterker bij!"); break;
         case 5: Serial.println("Iets links -> stuur beetje bij!"); break;
-        case 6: Serial.println("Meer links -> stuur sterker bij!"); break;
-        case 7: Serial.println("Geen lijn -> draai zoeken..."); break;
-        case 8: Serial.println("T-split detected!"); break;
+        case 6: Serial.println("Meer lijn links -> stuur sterker bij!"); break;
+        case 7: Serial.println("Doodlopend lijn -> draaien...."); break;
+        case 8: Serial.println("T-split gedetecteerd!"); break;
     }
 
     // Update lights based on direction
@@ -307,16 +284,19 @@ void mazeLine() {
         case -1: blinkerLeft(); break;
         case 0: regularLight(); break;
         case 1: blinkerRight(); break;
+        case 2: regularLight(); break;
         case 3: regularLight(); break;
         case 4: blinkerRight(); break;
         case 5: regularLight(); break;
         case 6: blinkerLeft(); break;
         case 7: blinkerRight(); break;
+        case 8: regularLight(); break;
         default: regularLight(); break;
     }
 
     delay(50); // Small delay to stabilize the loop
 }
+
 
 //-----------------LICHT FUNCTIES
 //-------------DEFAULT INDICATOR PROGRAM
