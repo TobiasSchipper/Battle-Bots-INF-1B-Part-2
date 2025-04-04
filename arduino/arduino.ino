@@ -69,6 +69,11 @@ int _DEADZONELOW = 0;
 int _DEADZONEHIGH = 0;
 int _LASTDISTANCE = 0;
 
+//-----------start & end variabelen
+unsigned long _STARTTIME = 0; // Tijdstip waarop de sensor voor het eerst iets detecteert
+bool _TIMERRUNNING = false;
+bool _START = false; 
+
 //-----------DEBUGGING
 //#define SENSORVALUE
 
@@ -79,12 +84,6 @@ int _LASTDISTANCE = 0;
 #define SLOWER_SPEED 60
 #define SLOWEST_SPEED 10
 #define SEARCH_SPEED 50
-#define BW_SEARCH_SPEED -50
-#define BW_SLOWEST_SPEED -10
-#define BW_SLOWER_SPEED -60
-#define BW_SLOW_SPEED -100
-#define BW_STEADY_SPEED -214
-#define BW_FULLSPEED -255
 
 //-----------LINEFOLLOW LOGIC
 int _lastDirection = 0;  // 0 = rechtdoor, -1 = links, 1 = rechts
@@ -92,8 +91,6 @@ bool isTurning = false;  // Houdt bij of de robot aan het draaien is
 bool lastTurnRight = true; // Houdt bij of de laatste draai naar rechts was
 unsigned long turnStartTime = 0; // Stores the start time of the turn
 const unsigned long sharpTurnDuration = 400; // Duration for sharp turns in milliseconds
-unsigned long previousMillis = 0;  // Variabele om de tijd bij te houden
-const long interval = 10; 
 
 //-------------SETUP
 void setup() {
@@ -192,10 +189,11 @@ void ifrSensor() {
 
 //-------------HAAL AFSTAND OP VAN IFRSENSOR
 void ifrInformation() {
+    ifrSensor();
     _DURATION = pulseIn(ECHOPIN, HIGH);
     _DISTANCE = (_DURATION*.0343)/2;
-    Serial.print("Distance: ");
-    Serial.println(_DISTANCE);
+    // Serial.print("Distance: ");
+    // Serial.println(_DISTANCE);
     static unsigned long lastMillis = 0;
     if (millis() - lastMillis >= 100) { // 100 millisecond delay
         lastMillis = millis();
@@ -213,58 +211,58 @@ void mazeLine() {
     }
     
     int average = sum / _NUM_SENSORS;
-    _DEADZONELOW = average - 50;
-    _DEADZONEHIGH = average + 50;
+    _DEADZONELOW = average - 50; // Increased range for smoother transitions
+    _DEADZONEHIGH = average + 100;
     int currentDirection = 0;
 
-    // Prioritize left corners
-    if (sensorReadings[6] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
-        currentDirection = -1; // Sharp left turn
-        motorControl(FULLSPEED, 0, 0, SLOW_SPEED); // Left motor forward, right motor backward
+    // === VLOEIENDE BOCHTEN (RECHTS PRIORITEIT) ===
+    //Checken of er lijn naar rechts is
+    if (sensorReadings[7] >= _DEADZONEHIGH || sensorReadings[6] >= _DEADZONEHIGH) { 
+        // Sterke bocht naar rechts
+        motorControl(STEADY_SPEED, 0, 0, STEADY_SPEED); 
+        currentDirection = 1;
     } 
-    // Handle T-splits (always prioritize left turn)
-    else if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[7] >= _DEADZONEHIGH) { 
-        currentDirection = 8; // T-split detected
-        if (sensorReadings[6] >= _DEADZONEHIGH) { 
-            motorControl(SLOW_SPEED, 0, 0, SLOW_SPEED); // Turn left
-            currentDirection = -1; 
-        } else if (sensorReadings[1] >= _DEADZONEHIGH) { 
-            motorControl(0, SLOW_SPEED, SLOW_SPEED, 0); // Turn right
-            currentDirection = 1; 
-        } else {
-            motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0); // Move forward
-        }
-    } 
-    // Then check for right corners
-    else if (sensorReadings[0] >= _DEADZONEHIGH && sensorReadings[1] >= _DEADZONEHIGH) { 
-        currentDirection = 1; // Sharp right turn
-        motorControl(0, SLOW_SPEED, SLOW_SPEED, 0); // Left motor backward, right motor forward
-    } 
-    // Then check for forward movement
-    else if (sensorReadings[3] >= _DEADZONEHIGH && sensorReadings[4] >= _DEADZONEHIGH) { 
-        currentDirection = 0; // Move forward
-        motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0); // Both motors forward
-    } 
-    // Handle slight adjustments
-    else if (sensorReadings[4] >= _DEADZONEHIGH && sensorReadings[5] >= _DEADZONEHIGH) { 
-        currentDirection = 3; // Slight right adjustment
-        motorControl(STEADY_SPEED, 0, SLOW_SPEED, 0); // Adjusted motor speeds
-    } else if (sensorReadings[5] >= _DEADZONEHIGH && sensorReadings[6] >= _DEADZONEHIGH) { 
-        currentDirection = 4; // Stronger right adjustment
-        motorControl(STEADY_SPEED, 0, SLOWER_SPEED, 0); // Adjusted motor speeds
-    } else if (sensorReadings[2] >= _DEADZONEHIGH && sensorReadings[3] >= _DEADZONEHIGH) { 
-        currentDirection = 5; // Slight left adjustment
-        motorControl(SLOW_SPEED, 0, STEADY_SPEED, 0); // Adjusted motor speeds
-    } else if (sensorReadings[1] >= _DEADZONEHIGH && sensorReadings[2] >= _DEADZONEHIGH) { 
-        currentDirection = 6; // Stronger left adjustment
-        motorControl(SLOWER_SPEED, 0, STEADY_SPEED, 0); // Adjusted motor speeds
-    } 
-    // Handle dead ends
-    else if (sum < _DEADZONELOW * _NUM_SENSORS) {
-        currentDirection = 7; // Dead end detected
-        motorControl(SLOW_SPEED, 0, 0, SLOW_SPEED); // Perform a 180-degree turn
-        stopMotorControl();
+    //Checken of er lijn naar links is
+    else if (sensorReadings[1] >= _DEADZONEHIGH || sensorReadings[0] >= _DEADZONEHIGH) { 
+        // Sterke bocht naar links
+        motorControl(0, STEADY_SPEED, STEADY_SPEED, 0); 
+        currentDirection = -1;
     }
+    //Als er geen bochten beschikbaar is en er een lijn is rechtdoor rijden
+    else if (sensorReadings[4] >= _DEADZONEHIGH && sensorReadings[3] >= _DEADZONEHIGH) { 
+        // Rechtdoor rijden
+        motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0);  
+        currentDirection = 0;  
+    }  
+    //Lijn rechts lichte correctie naar links
+    else if (sensorReadings[2] >= _DEADZONEHIGH) { 
+        motorControl(SLOW_SPEED, 0, STEADY_SPEED, 0);  
+        currentDirection = 5;
+    } 
+    else if (sensorReadings[1] >= _DEADZONEHIGH) { 
+        motorControl(SLOW_SPEED, 0, STEADY_SPEED, 0);  
+        currentDirection = 6;
+    }
+    //Veel lijn links lichte correctie naar rechts
+    else if (sensorReadings[5] >= _DEADZONEHIGH) { 
+        motorControl(STEADY_SPEED, 0, SLOW_SPEED, 0);  
+        currentDirection = 3;  
+    } 
+    // Te veel lijn links sterkere correctie naar rechts
+    else if (sensorReadings[6] >= _DEADZONEHIGH) { 
+        motorControl(STEADY_SPEED, 0, SLOWER_SPEED, 0);  
+        currentDirection = 4;  
+    } 
+    // Alles lijnen kwijt 180 graden draaien
+    else if (sum <= _DEADZONELOW * _NUM_SENSORS) { 
+        // Geen lijn meer zichtbaar → dead-end
+        currentDirection = 7;
+        motorControl(0, SLOW_SPEED, SLOW_SPEED, 0); 
+    } else {  
+        // Geen sensor triggert een sterke reactie → rechtdoor blijven rijden
+        motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0);  
+        currentDirection = 0;  
+    }  
 
     // Debugging output
     switch (currentDirection) {
@@ -275,7 +273,7 @@ void mazeLine() {
         case 4: Serial.println("Meer rechts -> stuur sterker bij!"); break;
         case 5: Serial.println("Iets links -> stuur beetje bij!"); break;
         case 6: Serial.println("Meer lijn links -> stuur sterker bij!"); break;
-        case 7: Serial.println("Doodlopend lijn -> draaien...."); break;
+        case 7: Serial.println("Doodlopend lijn -> rechts draaien...."); break;
         case 8: Serial.println("T-split gedetecteerd!"); break;
     }
 
@@ -286,7 +284,7 @@ void mazeLine() {
         case 1: blinkerRight(); break;
         case 2: regularLight(); break;
         case 3: regularLight(); break;
-        case 4: blinkerRight(); break;
+        case 4: blinkerLeft(); break;
         case 5: regularLight(); break;
         case 6: blinkerLeft(); break;
         case 7: blinkerRight(); break;
@@ -294,9 +292,57 @@ void mazeLine() {
         default: regularLight(); break;
     }
 
-    delay(50); // Small delay to stabilize the loop
+    //delay(50);
 }
 
+void ConeDrop() {
+    unsigned long turnStartTime = 0;
+    bool turning = false;
+
+    if (_DISTANCE > 30 && _DISTANCE > 50) {
+        gripperOpen();
+        motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0);
+
+        if (_DISTANCE < 5) {
+            gripperClosed();
+            _START = true;
+        }
+
+        if (!turning) {
+            turnStartTime = millis();
+            turning = true;
+        }
+        
+        if (turning && millis() - turnStartTime >= 275) {
+            motorControl(0, SLOW_SPEED, SLOW_SPEED, 0); // bocht naar links
+        }
+        
+        if (turning && millis() - turnStartTime >= 1000) {
+            motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0); // Vooruit rijden
+            turning = false;
+        }
+    }
+
+    if (_START) {
+        if (sensorReadings[7] >= _DEADZONEHIGH && sensorReadings[0] >= _DEADZONEHIGH) {
+            if (!_TIMERRUNNING) {
+                _STARTTIME = millis(); // Start de timer
+                _TIMERRUNNING = true;
+            }
+        } else {
+            _TIMERRUNNING = false; // Reset de timer als de sensoren niets meer detecteren
+            _STARTTIME = 0;
+        }
+        
+        if (_TIMERRUNNING && millis() - _STARTTIME >= 250) {
+            gripperOpen();
+            motorControl(-STEADY_SPEED, 0, -STEADY_SPEED, 0); // Achteruit rijden
+            _TIMERRUNNING = false; // Timer resetten na actie
+        }
+        
+        mazeLine(); // Start de MazeLine functie als start true is
+    }
+}
 
 //-----------------LICHT FUNCTIES
 //-------------DEFAULT INDICATOR PROGRAM
