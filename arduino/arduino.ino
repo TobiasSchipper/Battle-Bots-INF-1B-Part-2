@@ -45,6 +45,12 @@
 Adafruit_NeoPixel strip(NUMPIXELS, PIN, NEO_RGB + NEO_KHZ800);
 
 //-------------PIN SETUP------------------------------------------
+#define BUTTONPIN1 2
+bool buttonState1 = 0;
+
+#define BUTTONPIN2 3
+bool buttonState2 = 0;
+
 //-------------Links motor
 #define motor_L1 6
 #define motor_L2 11
@@ -120,6 +126,9 @@ void setup() {
         pinMode(LineSensor[i], INPUT);
     }
 
+    pinMode(BUTTONPIN1, INPUT);
+    pinMode(BUTTONPIN2, INPUT);
+
     //Pixel setup
     strip.begin();
     strip.show(); // Initialize all pixels to 'off'
@@ -128,6 +137,17 @@ void setup() {
 
 //-------------LOOP
 void loop() {
+    buttonState1 = digitalRead(BUTTONPIN1);
+    buttonState2 = digitalRead(BUTTONPIN2);
+
+    if(buttonState1 == LOW)
+    {
+        gripperOpen();
+    }
+    else if(buttonState2 == LOW)
+    {
+        gripperClosed();
+    }
     mazeLine();
 }
 
@@ -170,12 +190,12 @@ void gripper(int pulse) {
 
 //-------------GRIPPER OPEN
 void gripperOpen() {
-    gripper(1800);
+    gripper(1900);
 }
 
 //-------------GRIPPER SLUITEN
 void gripperClosed() {
-    gripper(1050);
+    gripper(1250);
 }
 
 //-------------ON/OFF IFRSENSOR
@@ -292,7 +312,7 @@ void mazeLine() {
         default: regularLight(); break;
     }
 
-    //delay(50);
+    delay(75);
 }
 
 void ConeDrop() {
