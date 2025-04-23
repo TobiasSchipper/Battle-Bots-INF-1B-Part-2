@@ -1,121 +1,432 @@
-#include <Arduino.h>
+/*
+* ==========================================================
+*  Project: Battlebots
+*  Board  : Arduino Nano
+*  Author : Robbin & Tobias Schipper
+*  Version: 1.0
+*  
+*
+* ==========================================================
+*  PINOUT ARDUINO NANO
+*  ---------------------------------------------------------
+*  | Pin | Functie      | Opmerking                        |
+*  |-----|-------------|----------------------------------|
+*  | D0  | RX          | Seriële communicatie (in)       |
+*  | D1  | TX          | Seriële communicatie (uit)      |
+*  | D2  | Digitaal I/O| vrij                            |
+*  | D3  | Digitaal I/O| vrij                            |
+*  | D4  | Digitaal I/O| vrij                            |
+*  | D5  | Digitaal I/O| PWM motor rechts B1             |
+*  | D6  | Digitaal I/O| PWM motor links A1              |
+*  | D7  | Digitaal I/O| vrij                            |
+*  | D8  | Digitaal I/O| IfrSensor Trig                  |
+*  | D9  | Digitaal I/O| IfrSensor Echo                  |
+*  | D10 | Digitaal I/O| PWM motor rechts B2             |
+*  | D11 | Digitaal I/O| PWM motor links A2              |
+*  | D12 | Digitaal I/O| input Gripper                   |
+*  | D13 | Digitaal I/O| Data pin voor Neopixels         |
+*  | A0  | Analoog In  | LijnSensor 1 Rechts             |
+*  | A1  | Analoog In  | LijnSensor 2                    |
+*  | A2  | Analoog In  | LijnSensor 3                    |
+*  | A3  | Analoog In  | LijnSensor 4                    |
+*  | A4  | Analoog In  | LijnSensor 5                    |
+*  | A5  | Analoog In  | LijnSensor 6                    |
+*  | A6  | Analoog In  | LijnSensor 7                    |
+*  | A7  | Analoog In  | LijnSensor 8 Links              |
+*  -------------------------------------------------------
+*/
 
-// Motor pins
-#define MOTOR_LEFT_FORWARD 11
-#define MOTOR_LEFT_BACKWARD 10
-#define MOTOR_RIGHT_FORWARD 6
-#define MOTOR_RIGHT_BACKWARD 5
+//-------------LIBRARIES-----------------------------------------
+#include <Adafruit_NeoPixel.h>
 
-// Sensor pins
-#define SENSOR_0 A0
-#define SENSOR_1 A1
-#define SENSOR_2 A2
-#define SENSOR_3 A3
-#define SENSOR_4 A4
-#define SENSOR_5 A5
-#define SENSOR_6 A6
-#define SENSOR_7 A7
+//-------------NEO PIXEL SETUP------------------------------------
+#define PIN 13       // Data pin connected to DIN
+#define NUM_PIXELS 4 // neopixel led count
+Adafruit_NeoPixel strip(NUM_PIXELS, PIN, NEO_RGB + NEO_KHZ800);
 
-#define _NUM_SENSORS 8
-#define _DEADZONE_OFFSET 50
+//-------------PIN SETUP------------------------------------------
+#define BUTTON_PIN_1 2
+bool _buttonState1 = 0;
 
-int LineSensor[_NUM_SENSORS] = {SENSOR_0, SENSOR_1, SENSOR_2, SENSOR_3, SENSOR_4, SENSOR_5, SENSOR_6, SENSOR_7};
-int _DEADZONELOW = 0;
-int _DEADZONEHIGH = 0;
+#define BUTTON_PIN_2 3
+bool _buttonState2 = 0;
 
-// PID parameters
-float Kp = 2.0;   // Verlaagde Proportional gain
-float Ki = 0.1;   // Integral gain
-float Kd = 1.0;   // Verlaagde Derivative gain
+//-------------Links motor
+#define MOTOR_L1 6
+#define MOTOR_L2 11
 
-float previousError = 0;
-float integral = 0;
+//-------------Rechts motor
+#define MOTOR_R1 10
+#define MOTOR_R2 5
 
+//-------------IFR Sensor
+#define TRIG_PIN 8
+#define ECHO_PIN 9
+float _duration, _distance;
+
+//-------------Gripper
+#define GRIPPER_PIN 12
+
+//-----------lijnsensor
+#define NUM_SENSORS 8
+const int _lineSensor[NUM_SENSORS] = {A7, A6, A5, A4, A3, A2, A1, A0};
+int _sensorReadings[NUM_SENSORS];
+int _deadZoneLow = 0;
+int _deadZoneHigh = 0;
+int _lastDistance = 0;
+
+//-----------start & end variabelen
+unsigned long _startTime = 0; // Tijdstip waarop de sensor voor het eerst iets detecteert
+bool _timerRunning = false;
+bool _start = false; 
+
+//-----------DEBUGGING
+//#define SENSOR_VALUE
+
+//-----------MOTOR SPEEDS
+#define FULL_SPEED 255
+#define STEADY_SPEED 214
+#define SLOW_SPEED 180
+#define SLOWER_SPEED 60
+#define SLOWEST_SPEED 10
+#define SEARCH_SPEED 50
+
+//-----------LINEFOLLOW LOGIC
+int _lastDirection = 0;  // 0 = rechtdoor, -1 = links, 1 = rechts
+bool _isTurning = false;  // Houdt bij of de robot aan het draaien is
+bool _lastTurnRight = true; // Houdt bij of de laatste draai naar rechts was
+unsigned long _turnStartTime = 0; // Stores the start time of the turn
+const unsigned long SHARP_TURN_DURATION = 400; // Duration for sharp turns in milliseconds
+
+//-------------SETUP
 void setup() {
-    pinMode(MOTOR_LEFT_FORWARD, OUTPUT);
-    pinMode(MOTOR_LEFT_BACKWARD, OUTPUT);
-    pinMode(MOTOR_RIGHT_FORWARD, OUTPUT);
-    pinMode(MOTOR_RIGHT_BACKWARD, OUTPUT);
-    
-    for (int i = A0; i <= A7; i++) {
-        pinMode(i, INPUT);
-    }
-    
     Serial.begin(9600);
+
+    //motor setup
+    pinMode(MOTOR_L1, OUTPUT);
+    pinMode(MOTOR_L2, OUTPUT);
+    pinMode(MOTOR_R1, OUTPUT);
+    pinMode(MOTOR_R2, OUTPUT); 
+    //IFR Setup
+    pinMode(TRIG_PIN, OUTPUT);  
+    pinMode(ECHO_PIN, INPUT); 
+    //gripper setup
+    pinMode(GRIPPER_PIN, OUTPUT); 
+
+    //output op uit zetten
+    digitalWrite(MOTOR_L1, HIGH);
+    digitalWrite(MOTOR_L2, HIGH);
+    digitalWrite(MOTOR_R1, HIGH);
+    digitalWrite(MOTOR_R2, HIGH);
+    digitalWrite(TRIG_PIN, HIGH);
+    digitalWrite(GRIPPER_PIN, HIGH);
+
+    // Zet alle sensors als input
+    for (int i = 0; i < NUM_SENSORS; i++) {
+        pinMode(_lineSensor[i], INPUT);
+    }
+
+    pinMode(BUTTON_PIN_1, INPUT);
+    pinMode(BUTTON_PIN_2, INPUT);
+
+    //Pixel setup
+    strip.begin();
+    strip.show(); // Initialize all pixels to 'off'
 }
 
+
+//-------------LOOP
 void loop() {
-    int sensorValues[_NUM_SENSORS];
-    int sum = 0;
+    _buttonState1 = digitalRead(BUTTON_PIN_1);
+    _buttonState2 = digitalRead(BUTTON_PIN_2);
+
+    if (_buttonState1 == LOW) {
+        GripperOpen();
+    } else if (_buttonState2 == LOW) {
+        GripperClosed();
+    }
+    MazeLine();
+}
+
+//--------------------BEWEGINGSFUNCTIES
+//-------------MOTOR CONTROL
+void MotorControl(int leftForward, int leftBackward, int rightForward, int rightBackward) {
+    // Left motor control
+    analogWrite(MOTOR_L1, leftBackward); // Backward motion
+    analogWrite(MOTOR_L2, leftForward); // Forward motion
+
+    // Right motor control
+    analogWrite(MOTOR_R1, rightBackward); // Backward motion
+    analogWrite(MOTOR_R2, rightForward); // Forward motion
+}
+
+void StopMotorControl() { 
+    BrakeLight();
+    analogWrite(MOTOR_L1, 0); 
+    analogWrite(MOTOR_L2, 0); 
+    analogWrite(MOTOR_R1, 0); 
+    analogWrite(MOTOR_R2, 0); 
+} 
+
+//-------------GRIPPER FUNCTIE
+void Gripper(int pulse) {
+    static unsigned long timer;
+    static int lastPulse;
+    if (millis() > timer) {
+        if (pulse > 0) {
+            lastPulse = pulse;
+        } else {
+            pulse = lastPulse;
+        }
+        digitalWrite(GRIPPER_PIN, HIGH);
+        delayMicroseconds(pulse);
+        digitalWrite(GRIPPER_PIN, LOW);
+        timer = millis() + 20; //20ms interval voor servo
+    }
+}
+
+//-------------GRIPPER OPEN
+void GripperOpen() {
+    Gripper(1900);
+}
+
+//-------------GRIPPER SLUITEN
+void GripperClosed() {
+    Gripper(1250);
+}
+
+//-------------ON/OFF IFRSENSOR
+void IfrSensor() {
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+}
+
+//-------------HAAL AFSTAND OP VAN IFRSENSOR
+void IfrInformation() {
+    IfrSensor();
+    _duration = pulseIn(ECHO_PIN, HIGH);
+    _distance = (_duration * .0343) / 2;
+    static unsigned long lastMillis = 0;
+    if (millis() - lastMillis >= 100) { // 100 millisecond delay
+        lastMillis = millis();
+    }
+}
+
+//-------------Maze Line Follower
+void MazeLine() {
+    int _sensorReadings[NUM_SENSORS]; 
+    int sum = 0; 
     
-    for (int i = 0; i < _NUM_SENSORS; i++) {
-        sensorValues[i] = analogRead(LineSensor[i]);
-        sum += sensorValues[i];
+    for (int i = 0; i < NUM_SENSORS; i++) { 
+        _sensorReadings[i] = analogRead(_lineSensor[i]);
+        sum += _sensorReadings[i]; 
     }
     
-    int average = sum / _NUM_SENSORS;
-    _DEADZONELOW = average - _DEADZONE_OFFSET;
-    _DEADZONEHIGH = average + _DEADZONE_OFFSET;
-    
-    // Bereken de fout op basis van de sensorwaarden
-    int error = calculateError(sensorValues);
-    
-    // PID-controller
-    integral += error;
-    float derivative = error - previousError;
-    float correction = (Kp * error) + (Ki * integral) + (Kd * derivative);
-    previousError = error;
-    
-    int baseSpeed = 200; // Aangepaste basis snelheid
-    int leftSpeed = constrain(baseSpeed - correction, 0, 255);
-    int rightSpeed = constrain(baseSpeed + correction, 0, 255);
-    
-    if (sensorValues[3] > _DEADZONEHIGH || sensorValues[4] > _DEADZONEHIGH) { // Midden sensoren zien de lijn
-        moveForward(leftSpeed, rightSpeed);
-    } else if (sensorValues[5] > _DEADZONEHIGH || sensorValues[6] > _DEADZONEHIGH || sensorValues[7] > _DEADZONEHIGH) { // Linker sensoren zien de lijn
-        turnLeft();
-    } else if (sensorValues[0] > _DEADZONEHIGH || sensorValues[1] > _DEADZONEHIGH || sensorValues[2] > _DEADZONEHIGH) { // Rechter sensoren zien de lijn
-        turnRight();
-    } else { // Lijn kwijt
-        stopMotors();
+    int average = sum / NUM_SENSORS;
+    _deadZoneLow = average - 50; // Increased range for smoother transitions
+    _deadZoneHigh = average + 100;
+    int currentDirection = 0;
+
+    // === VLOEIENDE BOCHTEN (RECHTS PRIORITEIT) ===
+    //Checken of er lijn naar rechts is
+    if (_sensorReadings[7] >= _deadZoneHigh || _sensorReadings[6] >= _deadZoneHigh) { 
+        // Sterke bocht naar rechts
+        MotorControl(STEADY_SPEED, 0, 0, STEADY_SPEED); 
+        currentDirection = 1;
+    } 
+    //Checken of er lijn naar links is
+    else if (_sensorReadings[1] >= _deadZoneHigh || _sensorReadings[0] >= _deadZoneHigh) { 
+        // Sterke bocht naar links
+        MotorControl(0, STEADY_SPEED, STEADY_SPEED, 0); 
+        currentDirection = -1;
     }
-    
-    delay(5); // Verlaagde delay voor snellere respons
-}
-
-int calculateError(int sensorValues[]) {
-    // Gewogen foutberekening op basis van de sensorwaarden
-    int error = 0;
-    for (int i = 0; i < _NUM_SENSORS; i++) {
-        error += (sensorValues[i] > _DEADZONEHIGH ? 1 : 0) * (3.5 - i);
+    //Als er geen bochten beschikbaar is en er een lijn is rechtdoor rijden
+    else if (_sensorReadings[4] >= _deadZoneHigh && _sensorReadings[3] >= _deadZoneHigh) { 
+        // Rechtdoor rijden
+        MotorControl(STEADY_SPEED, 0, STEADY_SPEED, 0);  
+        currentDirection = 0;  
+    }  
+    //Lijn rechts lichte correctie naar links
+    else if (_sensorReadings[2] >= _deadZoneHigh) { 
+        MotorControl(SLOW_SPEED, 0, STEADY_SPEED, 0);  
+        currentDirection = 5;
+    } 
+    else if (_sensorReadings[1] >= _deadZoneHigh) { 
+        MotorControl(SLOW_SPEED, 0, STEADY_SPEED, 0);  
+        currentDirection = 6;
     }
-    return error;
+    //Veel lijn links lichte correctie naar rechts
+    else if (_sensorReadings[5] >= _deadZoneHigh) { 
+        MotorControl(STEADY_SPEED, 0, SLOW_SPEED, 0);  
+        currentDirection = 3;  
+    } 
+    // Te veel lijn links sterkere correctie naar rechts
+    else if (_sensorReadings[6] >= _deadZoneHigh) { 
+        MotorControl(STEADY_SPEED, 0, SLOWER_SPEED, 0);  
+        currentDirection = 4;  
+    } 
+    // Alles lijnen kwijt 180 graden draaien
+    else if (sum <= _deadZoneLow * NUM_SENSORS) { 
+        // Geen lijn meer zichtbaar → dead-end
+        currentDirection = 7;
+        MotorControl(0, SLOW_SPEED, SLOW_SPEED, 0); 
+    } else {  
+        // Geen sensor triggert een sterke reactie → rechtdoor blijven rijden
+        MotorControl(STEADY_SPEED, 0, STEADY_SPEED, 0);  
+        currentDirection = 0;  
+    }  
+
+    // Debugging output
+    switch (currentDirection) {
+        case -1: Serial.println("Bocht naar links -> draai links!"); break;
+        case 0: Serial.println("Midden op lijn -> rechtdoor!"); break;
+        case 1: Serial.println("Bocht naar rechts -> draai rechts!"); break;
+        case 3: Serial.println("Iets rechts -> stuur beetje bij!"); break;
+        case 4: Serial.println("Meer rechts -> stuur sterker bij!"); break;
+        case 5: Serial.println("Iets links -> stuur beetje bij!"); break;
+        case 6: Serial.println("Meer lijn links -> stuur sterker bij!"); break;
+        case 7: Serial.println("Doodlopend lijn -> rechts draaien...."); break;
+        case 8: Serial.println("T-split gedetecteerd!"); break;
+    }
+
+    // Update lights based on direction
+    switch (currentDirection) {
+        case -1: BlinkerLeft(); break;
+        case 0: RegularLight(); break;
+        case 1: BlinkerRight(); break;
+        case 2: RegularLight(); break;
+        case 3: RegularLight(); break;
+        case 4: BlinkerLeft(); break;
+        case 5: RegularLight(); break;
+        case 6: BlinkerLeft(); break;
+        case 7: BlinkerRight(); break;
+        case 8: RegularLight(); break;
+        default: RegularLight(); break;
+    }
+
+    delay(75);
 }
 
-void moveForward(int leftSpeed, int rightSpeed) {
-    analogWrite(MOTOR_LEFT_FORWARD, leftSpeed);
-    analogWrite(MOTOR_RIGHT_FORWARD, rightSpeed);
-    analogWrite(MOTOR_LEFT_BACKWARD, 0);
-    analogWrite(MOTOR_RIGHT_BACKWARD, 0);
+void coneDrop() {
+    unsigned long turnStartTime = 0;
+    bool turning = false;
+
+    if (_DISTANCE > 30 && _DISTANCE < 50) {
+        gripperOpen();
+        motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0);
+        regularLight(); // Turn on regular light while moving forward
+
+        if (_DISTANCE < 5) {
+            gripperClosed();
+            _START = true;
+            brakeLight(); // Turn on brake light when stopping
+        }
+
+        if (!turning) {
+            turnStartTime = millis();
+            turning = true;
+        }
+
+        if (turning && millis() - turnStartTime >= 275) {
+            motorControl(0, SLOW_SPEED, SLOW_SPEED, 0); // Turn left
+            blinkerLeft(); // Turn on left blinker while turning
+        }
+
+        if (turning && millis() - turnStartTime >= 1000) {
+            motorControl(STEADY_SPEED, 0, STEADY_SPEED, 0); // Move forward
+            regularLight(); // Switch back to regular light
+            turning = false;
+        }
+    }
+
+    if (_START) {
+        if (sensorReadings[7] >= _DEADZONEHIGH && sensorReadings[0] >= _DEADZONEHIGH) {
+            if (!_TIMERRUNNING) {
+                _STARTTIME = millis(); // Start the timer
+                _TIMERRUNNING = true;
+            }
+        } else {
+            _TIMERRUNNING = false; // Reset the timer if sensors detect nothing
+            _STARTTIME = 0;
+        }
+
+        if (_TIMERRUNNING && millis() - _STARTTIME >= 250) {
+            gripperOpen();
+            motorControl(-STEADY_SPEED, 0, -STEADY_SPEED, 0); // Move backward
+            brakeLight(); // Turn on brake light while reversing
+            _TIMERRUNNING = false; // Reset the timer after the action
+        }
+
+        mazeLine(); // Start the MazeLine function if _START is true
+    }
 }
 
-void turnLeft() {
-    analogWrite(MOTOR_LEFT_FORWARD, 0);
-    analogWrite(MOTOR_RIGHT_FORWARD, 200); // Aangepaste snelheid
-    analogWrite(MOTOR_LEFT_BACKWARD, 200); // Aangepaste snelheid
-    analogWrite(MOTOR_RIGHT_BACKWARD, 0);
+//-------------LIGHT FUNCTIONS------------------------------------
+
+//-------------DEFAULT INDICATOR PROGRAM
+void blinkers(int upper, int lower, bool active) {
+    static unsigned long previousMillis = 0;
+    static bool ledState = false;  // Ensure ledState is retained across calls
+    unsigned long currentMillis = millis();
+
+    if (active) {  // Only blink if "active" is true
+        if (currentMillis - previousMillis >= 250) {  
+            previousMillis = currentMillis;
+            ledState = !ledState;  // Toggle state
+        }
+    } else {
+        ledState = false;
+        previousMillis = 0;  // Reset timer if blinking stops
+    }
+
+    if (ledState) {
+        strip.setPixelColor(upper, strip.Color(255, 69, 0));  // Orange ON
+        strip.setPixelColor(lower, strip.Color(255, 69, 0));  // Orange ON
+    } else {
+        strip.setPixelColor(upper, strip.Color(100, 0, 0));  // Red
+        strip.setPixelColor(lower, strip.Color(100, 100, 100)); // White
+    }
+
+    strip.show();  // Update the strip to reflect changes
 }
 
-void turnRight() {
-    analogWrite(MOTOR_LEFT_FORWARD, 200); // Aangepaste snelheid
-    analogWrite(MOTOR_RIGHT_FORWARD, 0);
-    analogWrite(MOTOR_LEFT_BACKWARD, 0);
-    analogWrite(MOTOR_RIGHT_BACKWARD, 200); // Aangepaste snelheid
+//-------------LEFT BLINKER
+void blinkerLeft() {
+    strip.clear();
+    blinkers(0, 3, true);
+    strip.setPixelColor(1, strip.Color(150, 0, 0));  // Red
+    strip.setPixelColor(2, strip.Color(100, 100, 100));  // White
+    strip.show();
 }
 
-void stopMotors() {
-    analogWrite(MOTOR_LEFT_FORWARD, 0);
-    analogWrite(MOTOR_RIGHT_FORWARD, 0);
-    analogWrite(MOTOR_LEFT_BACKWARD, 0);
-    analogWrite(MOTOR_RIGHT_BACKWARD, 0);
+//-------------RIGHT BLINKER
+void blinkerRight() {
+    strip.clear();
+    blinkers(1, 2, true);
+    strip.setPixelColor(0, strip.Color(150, 0, 0));  // Red
+    strip.setPixelColor(3, strip.Color(100, 100, 100));  // White
+    strip.show();
+}
+
+//-------------BRAKE LIGHT
+void brakeLight() {
+    strip.clear();
+    strip.setPixelColor(0, strip.Color(255, 0, 0));  // Red
+    strip.setPixelColor(1, strip.Color(255, 0, 0));  // Red
+    strip.setPixelColor(2, strip.Color(100, 100, 100));  // White
+    strip.setPixelColor(3, strip.Color(100, 100, 100));  // White
+    strip.show();
+}
+
+//-------------DEFAULT LIGHT
+void regularLight() {
+    strip.clear();
+    strip.setPixelColor(0, strip.Color(50, 0, 0));  // Red
+    strip.setPixelColor(1, strip.Color(50, 0, 0));  // Red
+    strip.setPixelColor(2, strip.Color(100, 100, 100));  // White
+    strip.setPixelColor(3, strip.Color(100, 100, 100));  // White
+    strip.show();
 }
